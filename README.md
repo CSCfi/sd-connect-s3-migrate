@@ -26,5 +26,5 @@ additional dependencies. Both the CLI script and the UI should be
 portable, and runable without admin permissions. If someone is in the
 unfortunate position where their employer whitelists only specific
 applications (even those that are portable and signed) ~thye're
-deservedly SoL~ they're able to run the application on e.g. CSC servers
+rightfully SoL~ they're able to run the application on e.g. CSC servers
 or a virtual desktop environment.

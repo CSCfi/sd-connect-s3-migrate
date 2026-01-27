@@ -1,0 +1,6 @@
+[submodule "submodules/sd-lock-util"]
+	path = submodules/sd-lock-util
+	url = https://github.com/CSCfi/sd-lock-util.git
+[submodule "submodules/swift-browser-ui"]
+	path = submodules/swift-browser-ui
+	url = https://github.com/CSCfi/swift-browser-ui.git
