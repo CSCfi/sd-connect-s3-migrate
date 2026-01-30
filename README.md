@@ -1,4 +1,5 @@
 # SD Connect S3 Migration Utility
+
 This repository contains the SD Connect S3 migration utility. There are
 certain incompatibilities that make it difficult to use files uploaded
 with the Openstack Swift API via S3 API on the Ceph object storage.
@@ -21,6 +22,7 @@ following things:
 	* Verifies that all files have a matching header if it existed in the first place
 
 ### Dependencies
+
 The tool is built into a singular binary, that should not require any
 additional dependencies. Both the CLI script and the UI should be
 portable, and runable without admin permissions. If someone is in the
