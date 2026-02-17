@@ -43,7 +43,7 @@
   </div>
 
   <div id="migration-card" v-if="step == 5">
-    <Migration :migrateBuckets="buckets" :scopedToken="scopedToken" />
+    <Migration :buckets="buckets" :scopedToken="scopedToken" />
   </div>
 
   <div id="results-card" v-if="step == 6">

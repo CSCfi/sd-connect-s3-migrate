@@ -2,6 +2,7 @@
 
 const auth_endpoint = "https://pouta-test.csc.fi:5001";
 let object_storage_endpoint = "";
+let userId = "";
 
 
 // Login using username and password
@@ -41,6 +42,11 @@ export async function loginWithUserpass(username, password) {
     console.log("Login not successful");
     return unscoped;
   }
+
+  // Cache the user id
+  const unscopedResponse = await resp.json();
+  userId = unscopedResponse?.user?.id;
+  console.log(`User id: ${userId}`);
 
   unscoped = resp.headers.get("X-Subject-Token");
 
@@ -126,8 +132,18 @@ export async function getScopedToken(token, project) {
 }
 
 
-// Retrieve ec2 credentials using the scoped project token
-export async function getEC2Credentials(token, userId, projectId) {
+/**
+ * Retrieve ec2 credentials using the scoped project token
+ * @param {string} token - a scoped token for the project in use
+ * @param {string} projectId - the used project's ID
+ * @returns {Promise<Object>} - the ec2 credentials
+ */
+export async function getEC2Credentials(token, projectId) {
+  if (!userId) {
+    console.log("No user id is defined, cannot retrieve ec2 credentials.");
+    return;
+  }
+
   let ec2 = {};
 
   try {
@@ -172,6 +188,11 @@ export async function getEC2Credentials(token, userId, projectId) {
 }
 
 
+/**
+ * Fetch a list of buckets from the Openstack Swift API
+ * @param {string} token 
+ * @returns {Promise<Array>}
+ */
 export async function getBuckets(token) {
   let buckets = [];
   let marker = "";
@@ -187,7 +208,7 @@ export async function getBuckets(token) {
       if (marker) {
         bucketURL.searchParams.append("marker", marker);
       }
-      let resp = await fetch(bucketURL, {
+      const resp = await fetch(bucketURL, {
         headers: {
           "X-Auth-Token": token,
         },
@@ -208,7 +229,64 @@ export async function getBuckets(token) {
 }
 
 
-export async function getObjects(token, bucket) {
+/**
+ * Fetch the filtered bucket ACL header contents
+ * @param {string} token 
+ * @param {string} bucket 
+ * @returns {Promise<Object>}
+ */
+export async function getBucketACLs(token, bucket) {
+  let ACLs = {};
+
+  try {
+    const bucketURL = new URL(`/${bucket}`, object_storage_endpoint);
+    const resp = await fetch(bucketURL, {
+      method: "HEAD",
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    let readAcl = resp.headers.get("X-Container-Read");
+    let writeAcl = resp.headers.get("X-Container-Write");
+
+    console.log(readAcl);
+    console.log(writeAcl);
+
+    // Parse the ACLs, we assume there will be no role based ACL entries as they're not
+    // really supported for normal Allas users.
+    if (readAcl) {
+      ACLs.read = readAcl
+        .replaceAll(" ", "")  // get rid of spaces, that are allowed in Openstack spec
+        .split(",")  // split the listing to a list of share entries
+        .filter(item => !item.match(".r") && !item.match(".rlistings"))  // filter out global shares if they exist
+        .filter(item => !item.match("*.*"))  // filter out the authenticated global share if it exists
+        .map(item => item.split(":")[0]) // yank the projects from the ACL listing, we don't care about the trailing asterisk
+    }
+    if (writeAcl) {
+      ACLs.write = writeAcl
+        .replaceAll(" ", "")  // get rid of spaces, that are allowed in Openstack spec
+        .split(",")  // split the listing to a list of share entries
+        .filter(item => !item.match("*.*"))  // filter out the authenticated global share if it exists
+        .map(item => !item.split(":")[0]) // yank the projects from the ACL listing, we don't care about the trailing asterisk
+    }
+  } catch (e) {
+    console.log("Failed to retrieve bucket ACLs.");
+    console.log(e);
+  }
+
+  console.log(ACLs);
+  return ACLs;
+}
+
+
+/**
+ * Fetch a list of objects within a bucket
+ * @param {string} token 
+ * @param {string} bucket 
+ * @returns {Promise<Array>}
+ */
+export async function getObjects(token, bucket, prefix = "") {
   let objects = [];
   let marker = "";
   let object_page;
@@ -218,10 +296,16 @@ export async function getObjects(token, bucket) {
       const objectURL = new URL(`/${bucket}`, object_storage_endpoint);
       // Use 1000 as the object page limit
       objectURL.searchParams("limit", 1000);
-      bucketURL.searchParams("format", "json");
+      objectURL.searchParams("format", "json");
       // Use the marker for paging the listings
       if (marker) {
         objectURL.searchParams.append("marker", marker);
+      }
+      // If there's a prefix, provide a listing filtered by a prefix
+      if (prefix) {
+        objectURL.searchParams("prefix", prefix);
+        // Use / as the default delimiter for directory traversal
+        objectURL.searchParams("delimiter", "/");
       }
       let resp = await fetch(objectURL, {
         headers: {
@@ -240,4 +324,124 @@ export async function getObjects(token, bucket) {
 
   console.log(objects);
   return objects;
+}
+
+
+/**
+ * Retrieve the DLO manifest prefix for a Swift large object
+ * @param {string} token - a scoped openstack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @returns {Promise<string>} - the DLO manifest prefix
+ */
+export async function checkObjectManifest(token, bucket, key) {
+  let manifest = "";
+  try {
+    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const resp = await fetch (objectURL, {
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    // Currently we only support DLO manifests, not SLO, as SD Connect tools
+    // don't use SLO anywhere
+    manifest = resp.headers.get("X-Object-Manifest");
+    console.log(manifest);
+  } catch (e) {
+    console.log(e);
+  }
+  
+  return manifest;
+}
+
+
+/**
+ * Retrieve the required object metadata headers
+ * @param {string} token - a scoped openstack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @returns {Promise<Object>} - the relevant object metadata
+ */
+export async function getObjectMeta(token, bucket, key) {
+  let objectMeta = {
+    size: 0,
+    last_modified: "",
+  };
+  try {
+    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const resp = await fetch (objectURL, {
+      method: "HEAD",
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    objectMeta.size = Number(resp.headers.get("Content-Length"));
+    objectMeta.last_modified = resp.headers.get("Last-Modified");
+  } catch (e) {
+    console.log(e);
+  }
+
+  return objectMeta;
+}
+
+
+/**
+ * Retrieve a byte range of the object
+ * @param {string} token - a scoped openstack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @param {number} start - first byte of the range
+ * @param {number} end - last byte of the range (inclusive range)
+ * @returns {Promise<Uint8Array>} - the object contents
+ */
+export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 * 1024 - 1) {
+  let object = new Uint8Array([]);
+
+  try {
+    let objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const resp = await fetch(objectURL, {
+      method: "HEAD", 
+      headers: {
+        "X-Auth-Token": token,
+        "Range": `bytes=${start}-${end}`
+      },
+    });
+
+    object = await resp.bytes();
+  } catch (e) {
+    console.log(e);
+  }
+
+  return object;
+}
+
+
+/**
+ * 
+ * @param {string} token - a scoped openstack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @returns {Promise<string>} - The object metadata headers
+ */
+export async function getObjectEtag(token, bucket, key) {
+  let etag = "";
+
+  try {
+    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const resp = await fetch(objectURL, {
+      method: "HEAD", 
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    // retrieve the etag from the response
+    etag = resp.headers.get("ETag");
+  } catch(e) {
+    console.log(e);
+  }
+
+  return etag;
 }
