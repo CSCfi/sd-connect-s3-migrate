@@ -53,6 +53,13 @@ export async function loginWithUserpass(username, password) {
   return unscoped;
 }
 
+/**
+ * Retrieve the S3 endpoint based on the object storage endpoint
+ */
+export function getS3endpoint() {
+  return object_storage_endpoint.replaceAll("/v1", "");
+}
+
 
 // Discover available projects from an unscoped token
 export async function discoverTokenProjects(token) {

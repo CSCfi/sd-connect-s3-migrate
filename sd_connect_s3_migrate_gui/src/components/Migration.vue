@@ -69,23 +69,25 @@ import { onMounted, ref } from 'vue';
 
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
-
 // Dependency quickly audited in approx three hours on 26.1.2026, Signed: Sampsa Penna
 import { slugify } from 'transliteration';
+
 import { SD_CONNECT_API_URL } from '../scripts/config';
 import { timeout } from '../scripts/common';
 import { checkObjectManifest, getBucketACLs, getEC2Credentials, getObject, getObjectEtag, getObjectMeta, getObjects } from '../scripts/openstack';
-import { BucketAccelerateStatus, CompleteMultipartUploadCommand, CreateBucketCommand, CreateMultipartUploadCommand, GetObjectOutputFilterSensitiveLog, HeadBucketCommand, HeadObjectCommand, PutBucketPolicyCommand, PutObjectCommand, S3Client, UploadPartCommand, UploadPartCopyCommand } from '@aws-sdk/client-s3';
+import { CompleteMultipartUploadCommand, CreateBucketCommand, CreateMultipartUploadCommand, HeadBucketCommand, HeadObjectCommand, PutBucketPolicyCommand, PutObjectCommand, S3Client, UploadPartCommand, UploadPartCopyCommand } from '@aws-sdk/client-s3';
 
 
 const {
   buckets,
   scopedToken,
-  projectId,
+  activeProject,
   s3address,
 } = defineProps([
   "buckets",
   "scopedToken",
+  "activeProject",
+  "s3address",
 ]);
 
 const emit = defineEmits([
@@ -588,7 +590,7 @@ async function beginMigration() {
   console.log("Begun migration.");
 
   // Initialize the ec2 credentials and the client
-  ec2 = await getEC2Credentials(scopedToken, projectId);
+  ec2 = await getEC2Credentials(scopedToken, activeProject.id);
   client = new S3Client({
     region: "us-east-1",
     endpoint: s3address,

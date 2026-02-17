@@ -43,11 +43,11 @@
   </div>
 
   <div id="migration-card" v-if="step == 5">
-    <Migration :buckets="buckets" :scopedToken="scopedToken" />
+    <Migration @bucketsMigrated="handleBucketsMigrated" :buckets="buckets" :scopedToken="scopedToken" :activeProject="active_project" :s3address="getS3endpoint()" />
   </div>
 
   <div id="results-card" v-if="step == 6">
-    <Results />
+    <Results :migratedBuckets="migratedBuckets" />
   </div>
 </template>
 
@@ -61,7 +61,7 @@ import Select from '../components/Select.vue';
 import Buckets from '../components/Buckets.vue';
 import Migration from '../components/Migration.vue';
 import Results from '../components/Results.vue';
-import { discoverTokenProjects, getScopedToken } from '../scripts/openstack';
+import { discoverTokenProjects, getS3endpoint, getScopedToken } from '../scripts/openstack';
 
 const step = ref(1);
 
@@ -79,6 +79,9 @@ let api_token = "";
 
 // Data gained from step 4
 let buckets = [];
+
+// Data gained from step 5
+let migratedBuckets = {};
 
 // Handle the project discovery from unscoped token
 async function handleProjectDiscovery(unscoped, username) {
@@ -119,6 +122,11 @@ async function handleSelectBuckets(migrateBuckets) {
   buckets = migrateBuckets;
 
   step.value += 1;
+}
+
+// Handle migrated buckets
+async function handleBucketsMigrated(buckets) {
+  migratedBuckets = buckets;
 }
 
 </script>
