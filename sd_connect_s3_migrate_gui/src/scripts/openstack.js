@@ -45,7 +45,8 @@ export async function loginWithUserpass(username, password) {
 
   // Cache the user id
   const unscopedResponse = await resp.json();
-  userId = unscopedResponse?.user?.id;
+  console.log(unscopedResponse);
+  userId = unscopedResponse?.token?.user?.id;
   console.log(`User id: ${userId}`);
 
   unscoped = resp.headers.get("X-Subject-Token");
@@ -57,7 +58,7 @@ export async function loginWithUserpass(username, password) {
  * Retrieve the S3 endpoint based on the object storage endpoint
  */
 export function getS3endpoint() {
-  return object_storage_endpoint.replaceAll("/v1", "");
+  return object_storage_endpoint.replaceAll("/swift/v1", "");
 }
 
 
@@ -174,10 +175,12 @@ export async function getEC2Credentials(token, projectId) {
     console.log("Trying to generate EC2 credentials.");
 
     const resp = await fetch(
-      new URL(`/v3/users/${userId}/credentials/OS-EC2`),
+      new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint),
       {
+        method: "POST",
         headers: {
           "X-Auth-Token": token,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           "tenant_id": projectId,
@@ -186,7 +189,7 @@ export async function getEC2Credentials(token, projectId) {
     );
 
     const creds = await resp.json();
-    ec2 = creds?.credential
+    ec2 = creds?.credential;
   }
 
   console.log(ec2);
@@ -246,7 +249,7 @@ export async function getBucketACLs(token, bucket) {
   let ACLs = {};
 
   try {
-    const bucketURL = new URL(`/${bucket}`, object_storage_endpoint);
+    const bucketURL = new URL(`${object_storage_endpoint}/${bucket}`);
     const resp = await fetch(bucketURL, {
       method: "HEAD",
       headers: {
@@ -300,19 +303,19 @@ export async function getObjects(token, bucket, prefix = "") {
 
   do {
     try {
-      const objectURL = new URL(`/${bucket}`, object_storage_endpoint);
+      let objectURL = new URL(`${object_storage_endpoint}/${bucket}`);
       // Use 1000 as the object page limit
-      objectURL.searchParams("limit", 1000);
-      objectURL.searchParams("format", "json");
+      objectURL.searchParams.append("limit", 1000);
+      objectURL.searchParams.append("format", "json");
       // Use the marker for paging the listings
       if (marker) {
         objectURL.searchParams.append("marker", marker);
       }
       // If there's a prefix, provide a listing filtered by a prefix
       if (prefix) {
-        objectURL.searchParams("prefix", prefix);
+        objectURL.searchParams.append("prefix", prefix);
         // Use / as the default delimiter for directory traversal
-        objectURL.searchParams("delimiter", "/");
+        objectURL.searchParams.append("delimiter", "/");
       }
       let resp = await fetch(objectURL, {
         headers: {
@@ -329,7 +332,6 @@ export async function getObjects(token, bucket, prefix = "") {
     }
   } while (object_page?.length > 0);
 
-  console.log(objects);
   return objects;
 }
 
@@ -344,7 +346,7 @@ export async function getObjects(token, bucket, prefix = "") {
 export async function checkObjectManifest(token, bucket, key) {
   let manifest = "";
   try {
-    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch (objectURL, {
       headers: {
         "X-Auth-Token": token,
@@ -376,7 +378,7 @@ export async function getObjectMeta(token, bucket, key) {
     last_modified: "",
   };
   try {
-    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch (objectURL, {
       method: "HEAD",
       headers: {
@@ -407,19 +409,22 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
   let object = new Uint8Array([]);
 
   try {
-    let objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    let objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch(objectURL, {
-      method: "HEAD", 
+      method: "GET", 
       headers: {
         "X-Auth-Token": token,
-        "Range": `bytes=${start}-${end}`
+        "Range": `bytes=${start}-${end}`,
       },
+      cache: "no-cache",
     });
 
     object = await resp.bytes();
   } catch (e) {
     console.log(e);
   }
+
+  console.log(object);
 
   return object;
 }
@@ -436,7 +441,7 @@ export async function getObjectEtag(token, bucket, key) {
   let etag = "";
 
   try {
-    const objectURL = new URL(`/${bucket}/${key}`, object_storage_endpoint);
+    const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch(objectURL, {
       method: "HEAD", 
       headers: {

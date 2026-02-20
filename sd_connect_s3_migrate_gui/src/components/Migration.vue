@@ -66,16 +66,35 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 
-
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
 // Dependency quickly audited in approx three hours on 26.1.2026, Signed: Sampsa Penna
 import { slugify } from 'transliteration';
+import {
+  CompleteMultipartUploadCommand,
+  CreateBucketCommand,
+  CreateMultipartUploadCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutBucketPolicyCommand,
+  PutObjectCommand,
+  S3Client,
+  S3ServiceException,
+  UploadPartCommand,
+  UploadPartCopyCommand
+} from '@aws-sdk/client-s3';
 
 import { SD_CONNECT_API_URL } from '../scripts/config';
 import { timeout } from '../scripts/common';
-import { checkObjectManifest, getBucketACLs, getEC2Credentials, getObject, getObjectEtag, getObjectMeta, getObjects } from '../scripts/openstack';
-import { CompleteMultipartUploadCommand, CreateBucketCommand, CreateMultipartUploadCommand, HeadBucketCommand, HeadObjectCommand, PutBucketPolicyCommand, PutObjectCommand, S3Client, UploadPartCommand, UploadPartCopyCommand } from '@aws-sdk/client-s3';
+import {
+  checkObjectManifest,
+  getBucketACLs,
+  getEC2Credentials,
+  getObject,
+  getObjectEtag,
+  getObjectMeta,
+  getObjects
+} from '../scripts/openstack';
 
 
 const {
@@ -222,8 +241,9 @@ function convertBucketName(bucket) {
  */
 async function migrateBucketHeaders(bucket) {
   // Skip header copy if the bucket name doesn't change
-  if (bucket.value.name == convertBucketName(bucket.value.name)) {
+  if (bucket.name == convertBucketName(bucket.value.name)) {
     for (const object of bucket.value.objects) {
+      bucket.value.totalHeadersDone++;
       object.headerDone = true;
     }
     return;
@@ -238,6 +258,7 @@ async function migrateBucketHeaders(bucket) {
     for (const object of bucket.value.objects) {
       bucket.value.currentlyMigratingFile = object.key;
       await timeout(50);
+      bucket.value.totalHeadersDone++;
       object.headerDone = true;
     }
 
@@ -322,9 +343,10 @@ async function multipartCopyObject(bucket, key, manifest) {
  */
 async function conventionalCopyObject(bucket, key) {
   let objectMeta = await getObjectMeta(scopedToken, bucket, key);
+  console.log(objectMeta);
 
   // If the object is smaller than 200 MiB, copy it as a single object
-  if (objectMeta.size > 200 * 1024 * 1024) {
+  if (objectMeta.size < 200 * 1024 * 1024) {
     let object = await getObject(scopedToken, bucket, key);
 
     try {
@@ -405,9 +427,16 @@ async function migrateBucketObjects(bucket) {
   // Migrate bucket objects for objects that require it
   for (const object of bucket.value.objects) {
     // Skip potentially done objects to continue from saved migration state
-    if (object.contentDone) continue;
+    if (object.contentDone) {
+      bucket.value.totalObjectsDone++;
+      continue;
+    }
+    
     // Skip objects that are just SD Connect v1 segments
-    if (object.key.match(".segments")) continue;
+    if (object.key.match(".segments")) {
+      bucket.value.totalObjectsDone++;
+      continue;
+    }
 
     /*
     We work on the basis that if the object is empty in the listing, it's
@@ -459,10 +488,12 @@ async function migrateBucketObjects(bucket) {
       });
       try {
         await client.send(objectAccessCommand);
+        console.log("Copying object using multipart.");
         await multipartCopyObject(bucket.value.name, object.key, manifest);
       } catch (e) {
         console.log(e);
         // If the object is inaccessible using S3 API, copy converntionally
+        console.log("Copying the object conventionally");
         await conventionalCopyObject(bucket.value.name, object.key);
       }
 
@@ -472,13 +503,15 @@ async function migrateBucketObjects(bucket) {
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
       // TODO: revert to previous manifest
     }
+
+    bucket.value.totalObjectsDone++;
   }
 }
 
 /**
  * Copy over the bucket sharing if that's required
  * @param {Object} bucket - the bucket that is to be migrated
- * @param {string} bucket.name - the name of the bucket that is to be migrated
+ * @param {string} bucket.value.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
   let ACLs = {};
@@ -489,7 +522,7 @@ async function migrateBucketSharing(bucket) {
     "Statement": [],
   };
   // Retrieve the bucket ACLs
-  ACLs = await getBucketACLs(bucket.name);
+  ACLs = await getBucketACLs(scopedToken, bucket.value.name);
   // Add statements for all read rights
   if (ACLs?.read?.length > 0) {
     for (const project of ACLs.read) {
@@ -517,7 +550,7 @@ async function migrateBucketSharing(bucket) {
             ] : []
           )
         ],
-        "Resource": [`arn:aws:s3:::${convertBucketName(bucket.name)}`, `arn:aws:s3:::${convertBucketName(bucket.name)}/*`],
+        "Resource": [`arn:aws:s3:::${convertBucketName(bucket.value.name)}`, `arn:aws:s3:::${convertBucketName(bucket.value.name)}/*`],
       }
 
       // Append the new statement to the list of statements
@@ -526,11 +559,11 @@ async function migrateBucketSharing(bucket) {
   }
   try {
     const command = new PutBucketPolicyCommand({
-      Bucket: convertBucketName(bucket.name),
+      Bucket: convertBucketName(bucket.value.name),
       Policy: JSON.stringify(policy),
     });
     await client.send(command);
-    console.log(`Added bucket policy for ${convertBucketName(bucket.name)}`);
+    console.log(`Added bucket policy for ${convertBucketName(bucket.value.name)}`);
   } catch (e) {
     if (
       e instanceof S3ServiceException &&
@@ -538,21 +571,24 @@ async function migrateBucketSharing(bucket) {
     ) {
       // Shamelessly recycle the error handling from AWS docs
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". The policy was malformed.`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". The policy was malformed.`,
       );
       return;
     } else if (caught instanceof S3ServiceException) {
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". ${caught.name}: ${caught.message}`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${caught.name}: ${caught.message}`,
       );
     } else {
       throw caught;
     }
   }
 
+  // Mark sharing as migrated
+  bucket.value.sharingMigrated = true;
+
   // If the bucket name has changed, we need to migrate the Vault side sharing
   // info as well
-  if (bucket.name == convertBucketName(bucket.name)) return;
+  if (bucket.value.name == convertBucketName(bucket.value.name)) return;
   // If we don't have API access configured, skip the operation Vault share migrate
   if (!SD_CONNECT_API_URL) return;
   // TODO: implement Vault sharing
@@ -605,7 +641,7 @@ async function beginMigration() {
     // Retrieve the list of bucket objects
     let objects = await getObjects(scopedToken, bucket.value.name);
     // Format the object listing according to our requirements
-    migrateBuckets.value.objects =
+    bucket.value.objects =
       objects.map(object => {
         return {
           key: object.name,
@@ -625,6 +661,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
       console.log(e);
+      return;
     }
 
     // Migrate bucket headers
@@ -633,6 +670,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket header migration failed. Reason/traceback:");
       console.log(e);
+      return;
     }
 
     // Migrate bucket contents
@@ -641,6 +679,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket objects migration failed. Reason/traceback:");
       console.log(e);
+      return;
     }
 
     // Migrate bucket sharing
@@ -649,11 +688,12 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket sharing migration failed. Reason/traceback:");
       console.log(e);
+      return;
     }
   }
 
   // Emit the migrate process state after finalize
-  emit("bucketsMigrated", migrateBuckets);
+  emit("bucketsMigrated", migrateBuckets.value.map(bucket => bucket.value));
 }
 
 </script>

@@ -127,6 +127,9 @@ async function handleSelectBuckets(migrateBuckets) {
 // Handle migrated buckets
 async function handleBucketsMigrated(buckets) {
   migratedBuckets = buckets;
+  console.log(migratedBuckets);
+
+  step.value += 1;
 }
 
 </script>
