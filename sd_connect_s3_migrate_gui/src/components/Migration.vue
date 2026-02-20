@@ -296,7 +296,7 @@ async function multipartCopyObject(bucket, key, manifest) {
   });
   // Get the upload id
   const multipartResp = await client.send(startMultipart);
-  const uploadId = multipartResp?.uploadId;
+  const uploadId = multipartResp?.UploadId;
   if (!uploadId) return;
 
   // Cache for the multipart parts
@@ -308,7 +308,7 @@ async function multipartCopyObject(bucket, key, manifest) {
       CopySource: `${segment_bucket}/${segment.name}`,
       Key: key,
       // SD Connect default object is signified by 8 digits, use that as part number
-      PartNumber: Number(segment.name.match(/[0-9]{8}/)[0]),
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
       UploadId: uploadId,
     });
     const partCopyResp = await client.send(multipartCopyCommand);
@@ -319,7 +319,7 @@ async function multipartCopyObject(bucket, key, manifest) {
 
     multipartParts.push({
       ETag: partCopyResp?.Etag,
-      PartNumber: Number(segment.name.match(/[0-9]{8}/)[0]),
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
     });
   }
 
@@ -347,6 +347,7 @@ async function conventionalCopyObject(bucket, key) {
 
   // If the object is smaller than 200 MiB, copy it as a single object
   if (objectMeta.size < 200 * 1024 * 1024) {
+    console.log(`Copying ${key} as one chunk.`);
     let object = await getObject(scopedToken, bucket, key);
 
     try {
@@ -363,6 +364,7 @@ async function conventionalCopyObject(bucket, key) {
 
     return;
   }
+  console.log(`Copying ${key} in multiple parts.`);
 
   // Otherwise, copy object in 100 MiB parts using s3 multipart
   const startMultipart = new CreateMultipartUploadCommand({
@@ -371,8 +373,12 @@ async function conventionalCopyObject(bucket, key) {
   });
   // Get the upload id
   const multipartResp = await client.send(startMultipart);
-  const uploadId = multipartResp?.uploadId;
-  if (!uploadId) return;
+  console.log(multipartResp);
+  const uploadId = multipartResp?.UploadId;
+  if (!uploadId) {
+    console.log("No multipart id for object, aborting.");
+    return;
+  };
 
   // Cache for the multipart parts
   let multipartParts = [];
@@ -380,6 +386,7 @@ async function conventionalCopyObject(bucket, key) {
 
   for (let i = 0; i < objectMeta.size; i = i + 100 * 1024 * 1024) {
     // Get the next 100 MiB of the object (using inclusive range)
+    console.log(`Getting the next part of object ${key}`);
     let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
 
     try {
@@ -388,7 +395,7 @@ async function conventionalCopyObject(bucket, key) {
         Bucket: convertBucketName(bucket),
         Key: key,
         PartNumber: partNumber,
-        uploadId: uploadId,
+        UploadId: uploadId,
       });
       const multipartPartResp = await client.send(putObjectPart);
       multipartParts.push({
