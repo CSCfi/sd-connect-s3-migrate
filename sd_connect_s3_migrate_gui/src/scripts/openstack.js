@@ -313,9 +313,9 @@ export async function getObjects(token, bucket, prefix = "") {
       }
       // If there's a prefix, provide a listing filtered by a prefix
       if (prefix) {
-        objectURL.searchParams.append("prefix", prefix);
+        objectURL.searchParams.append("path", prefix);
         // Use / as the default delimiter for directory traversal
-        objectURL.searchParams.append("delimiter", "/");
+        // objectURL.searchParams.append("delimiter", "/");
       }
       let resp = await fetch(objectURL, {
         headers: {
@@ -348,6 +348,7 @@ export async function checkObjectManifest(token, bucket, key) {
   try {
     const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch (objectURL, {
+      method: "HEAD",
       headers: {
         "X-Auth-Token": token,
       },
@@ -406,6 +407,8 @@ export async function getObjectMeta(token, bucket, key) {
  * @returns {Promise<Uint8Array>} - the object contents
  */
 export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 * 1024 - 1) {
+  console.log(`Getting object ${key} bytes ${start}-${end}`);
+
   let object = new Uint8Array([]);
 
   try {
