@@ -39,7 +39,6 @@
     "@aws-sdk/client-s3": "^3.637.0",
     "@cscfi/csc-ui": "^3.0.16",
     "@cscfi/csc-ui-vue": "^0.0.2",
-    "csc-ui": "0.9.5",
     "electron-squirrel-startup": "^1.0.1",
     "transliteration": "^2.6.1",
     "vue": "^3.5.26"
