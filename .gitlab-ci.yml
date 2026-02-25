@@ -21,7 +21,7 @@ lint-cli:
     echo "Placeholder for linting cli"
     echo "tox"
 
-lint-gui:
+lint-format-gui:
   stage: lint
   tags:
     - docker-exec
@@ -37,7 +37,7 @@ lint-gui:
     echo "Linting gui with eslint"
     cd sd_connect_s3_migrate_gui
     npm install
-    npm run lint
+    npm run lint-format
 
 release-job:
   extends: .automated-release

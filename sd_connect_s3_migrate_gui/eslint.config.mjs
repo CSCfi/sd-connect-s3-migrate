@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import pluginVue from "eslint-plugin-vue";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import { defineConfig } from "eslint/config";
 
 export default defineConfig([
@@ -17,4 +18,16 @@ export default defineConfig([
     },
   },
   pluginVue.configs["flat/essential"],
+  eslintPluginPrettierRecommended,
+  {
+    rules: {
+      "prettier/prettier": [
+        "error",
+        {
+          printWidth: 120,
+          htmlWhitespaceSensitivity: "ignore",
+        }
+      ]
+    }
+  }
 ]);
