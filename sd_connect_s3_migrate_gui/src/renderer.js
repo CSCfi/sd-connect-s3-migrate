@@ -26,22 +26,20 @@
  * ```
  */
 
-import './index.css';
+import "./index.css";
 
-import { createApp } from 'vue';
+import { createApp } from "vue";
 
-import { defineCustomElements } from '@cscfi/csc-ui/loader';
-import { vControl } from '@cscfi/csc-ui-vue';
+import { defineCustomElements } from "@cscfi/csc-ui/loader";
+import { vControl } from "@cscfi/csc-ui-vue";
 
-import MigrationPage from './pages/MigrationPage.vue';
+import MigrationPage from "./pages/MigrationPage.vue";
 
-console.log(
-  '👋 This message is being logged by "renderer.js", included via Vite',
-);
+console.log('👋 This message is being logged by "renderer.js", included via Vite');
 
 const app = createApp(MigrationPage);
 
-app.directive('control', vControl);
+app.directive("control", vControl);
 
 defineCustomElements();
 

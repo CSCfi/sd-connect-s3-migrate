@@ -1,67 +1,70 @@
 <template>
   <div id="main">
-  <c-toolbar>
-    <c-csc-logo/>
-    SD Connect Conversion tool
-  </c-toolbar>
-  <div id="separator"></div>
-  <!-- Main contents for the application -->
-  <div
-    id="login-card"
-    v-if="step == 1"
-  >
-    <Login @loginSuccessful="handleProjectDiscovery" />
+    <c-toolbar>
+      <c-csc-logo />
+      SD Connect Conversion tool
+    </c-toolbar>
+    <div id="separator"></div>
+    <!-- Main contents for the application -->
+    <div id="login-card" v-if="step == 1">
+      <Login @loginSuccessful="handleProjectDiscovery" />
+    </div>
+
+    <div v-else>
+      <c-steps v-model="step">
+        <c-step>{{ active_project ? `Selected project: ${active_project.name}` : "Select project" }}</c-step>
+
+        <c-step>{{ api_token ? "API token retrieved" : "Retrieve an API token" }}</c-step>
+
+        <c-step>
+          {{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets for migration" }}
+        </c-step>
+
+        <c-step>Migrate buckets</c-step>
+
+        <c-step>Migration result</c-step>
+      </c-steps>
+
+      <div id="select-card" v-if="step == 2">
+        <Select @selectProject="selectProjectAndScopeToken" :projects="projects" />
+      </div>
+
+      <div id="token-card" v-if="step == 3">
+        <Token @gotToken="handleAddAPIToken" :project="active_project" :user="user" />
+      </div>
+
+      <div id="buckets-card" v-if="step == 4">
+        <Buckets @selectBuckets="handleSelectBuckets" :scopedToken="scopedToken" />
+      </div>
+
+      <div id="migration-card" v-if="step == 5">
+        <Migration
+          @bucketsMigrated="handleBucketsMigrated"
+          :buckets="buckets"
+          :scopedToken="scopedToken"
+          :activeProject="active_project"
+          :s3address="getS3endpoint()"
+        />
+      </div>
+
+      <div id="results-card" v-if="step == 6">
+        <Results :migratedBuckets="migratedBuckets" />
+      </div>
+    </div>
   </div>
-
-  <div v-else>
-    <c-steps v-model="step">
-    
-    <c-step>{{ active_project ? `Selected project: ${active_project.name}` : "Select project" }}</c-step>
-
-    <c-step>{{ api_token ? "API token retrieved" : "Retrieve an API token" }}</c-step>
-    
-    <c-step>{{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets for migration" }}</c-step>
-
-    <c-step>Migrate buckets</c-step>
-
-    <c-step>Migration result</c-step>
-  </c-steps>
-
-
-  <div id="select-card" v-if="step == 2">
-    <Select @selectProject="selectProjectAndScopeToken" :projects="projects" />
-  </div>
-
-  <div id="token-card" v-if="step == 3">
-    <Token @gotToken="handleAddAPIToken" :project="active_project" :user="user" />
-  </div>
-  
-  <div id="buckets-card" v-if="step == 4">
-    <Buckets @selectBuckets="handleSelectBuckets" :scopedToken="scopedToken" />
-  </div>
-
-  <div id="migration-card" v-if="step == 5">
-    <Migration @bucketsMigrated="handleBucketsMigrated" :buckets="buckets" :scopedToken="scopedToken" :activeProject="active_project" :s3address="getS3endpoint()" />
-  </div>
-
-  <div id="results-card" v-if="step == 6">
-    <Results :migratedBuckets="migratedBuckets" />
-  </div>
-</div>
-</div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref } from "vue";
 
 // Component imports
 import Login from "../components/LoginForm.vue";
 import Token from "../components/APITokenForm.vue";
-import Select from '../components/ProjectSelection.vue';
-import Buckets from '../components/BucketTable.vue';
-import Migration from '../components/BucketMigration.vue';
-import Results from '../components/MigrationResults.vue';
-import { discoverTokenProjects, getS3endpoint, getScopedToken } from '../scripts/openstack';
+import Select from "../components/ProjectSelection.vue";
+import Buckets from "../components/BucketTable.vue";
+import Migration from "../components/BucketMigration.vue";
+import Results from "../components/MigrationResults.vue";
+import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
 
 const step = ref(1);
 
@@ -131,11 +134,9 @@ async function handleBucketsMigrated(buckets) {
 
   step.value += 1;
 }
-
 </script>
 
 <style lang="css">
-
 #login-card {
   width: 50%;
   margin: auto;

@@ -1,86 +1,58 @@
 <template>
+  <div class="grid gap-4">
+    <c-table ref="tableElementRef" responsive>
+      <table>
+        <thead>
+          <tr>
+            <th v-for="header in headers" :key="header">{{ header }}</th>
+          </tr>
+        </thead>
 
-<div
-  class="grid gap-4"
->
-  <c-table ref="tableElementRef" responsive>
-    <table>
-      <thead>
-        <tr>
-          <th v-for="header in headers" :key="header">{{ header }}</th>
-        </tr>
-      </thead>
+        <tbody>
+          <tr v-if="renderBuckets.length == 0" no-mobile-labels>
+            <td colspan="4">
+              <div class="grid place-content-center p-4 gap-4">No buckets found in project</div>
+            </td>
+          </tr>
 
-      <tbody>
-        <tr v-if="renderBuckets.length == 0" no-mobile-labels>
-          <td colspan="4">
-            <div class="grid place-content-center p-4 gap-4">
-              No buckets found in project
-            </div>
-          </td>
-        </tr>
+          <tr v-for="bucket in renderBuckets" :key="bucket.id">
+            <td>{{ bucket.name }}</td>
 
-        <tr v-for="bucket in renderBuckets" :key="bucket.id">
-          <td>{{ bucket.name }}</td>
+            <td>{{ bucket.count }}</td>
 
-          <td>{{ bucket.count }}</td>
+            <td>
+              <c-status v-if="getRecommendedAction(bucket) == 0" type="success">May not need migration</c-status>
+              <c-status v-else-if="getRecommendedAction(bucket) > 3" type="error">
+                Needs migration:
+                {{ getRecommendedAction(bucket) == 4 ? "contains whitespace" : "contains incompatible objects" }}
+              </c-status>
+              <c-status v-else type="warning">May need migration: contains incompatible characters</c-status>
+            </td>
 
-          <td>
-            <c-status
-              v-if="getRecommendedAction(bucket) == 0"
-              type="success"
-            >
-              May not need migration
-            </c-status>
-            <c-status
-              v-else-if="getRecommendedAction(bucket) > 3"
-              type="error"
-            >
-              Needs migration: {{ getRecommendedAction(bucket) == 4 ? "contains whitespace" : "contains incompatible objects" }}
-            </c-status>
-            <c-status
-              v-else
-              type="warning"
-            >
-              May need migration: contains incompatible characters
-            </c-status>
-          </td>
+            <td class="text-right">
+              <c-checkbox
+                @changeValue="checkSelected(bucket) ? removeFromSelected(bucket) : addToSelected(bucket)"
+                :checked="checkSelected(bucket)"
+              >
+                Select for migration
+              </c-checkbox>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-          <td class="text-right">
-            <c-checkbox
-              @changeValue="checkSelected(bucket) ? removeFromSelected(bucket) : addToSelected(bucket)"
-              :checked="checkSelected(bucket)"
-            >
-              Select for migration
-            </c-checkbox>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <c-button class="justify-self-start" @click="selectBuckets">
-      Migrate buckets
-    </c-button>
-  </c-table>
-
-</div>
-
+      <c-button class="justify-self-start" @click="selectBuckets">Migrate buckets</c-button>
+    </c-table>
+  </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import { getBuckets } from '../scripts/openstack';
+import { onMounted, ref } from "vue";
+import { getBuckets } from "../scripts/openstack";
 
+const { scopedToken } = defineProps(["scopedToken"]);
 
-const {
-  scopedToken,
-} = defineProps([
-  "scopedToken",
-]);
-
-const emit = defineEmits([
-  "selectBuckets",
-]);
+const emit = defineEmits(["selectBuckets"]);
 
 const headers = ["Name", "Objects", "Recommended action", "Migrate"];
 
@@ -90,30 +62,25 @@ let selected = ref([]);
 
 onMounted(() => {
   console.log(`Using scoped token: ${scopedToken}`);
-  getBuckets(scopedToken).then(ret => {
+  getBuckets(scopedToken).then((ret) => {
     buckets = ret;
-    renderBuckets.value = buckets.filter(bucket => !bucket.name.match("_segments"));
+    renderBuckets.value = buckets.filter((bucket) => !bucket.name.match("_segments"));
   });
 });
 
 // Check if a bucket is selected from the listing
 function checkSelected(bucket) {
-  return selected.value.find(i => i.name == bucket.name);
+  return selected.value.find((i) => i.name == bucket.name);
 }
 
 // Add a bucket to the selected bucket listing
 function addToSelected(bucket) {
-  selected.value = [
-    ...selected.value,
-    bucket,
-  ];
+  selected.value = [...selected.value, bucket];
 }
 
 // Remove a bucket from the selected bucket listing
 function removeFromSelected(bucket) {
-  selected.value = [
-    ...selected.value.filter(item => item.name === bucket.name),
-  ];
+  selected.value = [...selected.value.filter((item) => item.name === bucket.name)];
 }
 
 // Emit selected buckets to the main app
@@ -135,7 +102,7 @@ function getRecommendedAction(bucket) {
 
   // If the bucket has a matching segemnts bucket with content, it likely
   // contains swift large objects
-  if (buckets.find(nb => nb.name == `${bucket.name}_segments`)?.count > 0) {
+  if (buckets.find((nb) => nb.name == `${bucket.name}_segments`)?.count > 0) {
     return 5;
   }
 
@@ -163,5 +130,4 @@ function getRecommendedAction(bucket) {
 
   return 0;
 }
-
 </script>
