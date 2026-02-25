@@ -1,54 +1,70 @@
 <template>
-  <c-login-card background-position="50% 0%" src="/img/bg.png">
-  <c-login-card-title>Login to SD Connect migration tool</c-login-card-title>
-
-  <c-login-card-content>
-    <div>
-      SD Connect migration tool allows you to easily convert your files uploaded via the old API
-      to a format compatible with the new one. You will need to first log in using your CSC user
-      account.
-    </div>
-
-    <c-text-field label="Username" hint="CSC Account username" v-model="username" />
-
-    <c-text-field
-    hint="Use your CSC user account password"
-    label="Password"
-    type="password"
-    v-model="password"
-    />
-  </c-login-card-content>
-
-  <c-login-card-actions justify="space-between">
-    <c-button size="large" @click="allasLogin().then(() => {}).catch(e => {console.log(e)})">Submit</c-button>
-  </c-login-card-actions>
-
-  <c-link href="http://csc.fi" underline>Forgot password?</c-link>
-  </c-login-card>
+  <div>
+    <h1>Login to SD Connect Conversion tool</h1>
+    <p>
+      SD Connect Conversion tool allows you to easily
+       convert your files from SD Connect 1.0 and 2.0
+       to be compatible with SD Connect 3.0.
+    </p>
+    <p>Login with your CSC credentials.</p>
+    <form @submit.prevent="allasLogin">
+      <c-text-field
+        label="CSC username"
+        v-model="username"
+        :valid="!loginFailed"
+        hide-details
+        @changeValue="loginFailed=false"
+        @keyup.enter="allasLogin"
+      />
+      <c-text-field
+        label="Password"
+        type="password"
+        v-model="password"
+        :valid="!loginFailed"
+        validation="CSC username or password is incorrect"
+        @changeValue="loginFailed=false"
+        @keyup.enter="allasLogin"
+      />
+      <c-button
+        size="large"
+        type="submit"
+      >Log in</c-button>
+    </form>
+  </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { loginWithUserpass } from '../scripts/openstack';
-
 
 let username = "";
 let password = "";
-
 let unscoped = "";
+let loginFailed = ref(false);
 
 const emit = defineEmits([
   "loginSuccessful",
-  "loginFailed",
 ]);
 
 async function allasLogin() {
+  if (!username || !password) {
+    loginFailed.value = true;
+    return;
+  }
   unscoped = await loginWithUserpass(username, password);
-
   if (unscoped) {
+    loginFailed.value = false;
     emit("loginSuccessful", unscoped, username);
-  } else [
-    emit("loginFailed")
-  ]
+  } else {
+    loginFailed.value = true;
+  }
 }
-
 </script>
+
+<style scoped>
+form > * {
+  margin-top: 1rem;
+  /* Add transparent border to force c-text-field margin */
+  border: 1px solid transparent;
+}
+</style>
