@@ -3,7 +3,7 @@
   <h1>Select the project to use:</h1>
 
   <ul>
-    <li v-for="project in projects">
+    <li v-for="project in projects" :key="project.name">
       {{ project.name }} <c-button @click="selectProject(project)">Select project</c-button>
     </li>
   </ul>

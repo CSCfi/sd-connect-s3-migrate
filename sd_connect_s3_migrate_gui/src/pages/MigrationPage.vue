@@ -55,12 +55,12 @@
 import { ref } from 'vue';
 
 // Component imports
-import Login from "../components/Login.vue";
-import Token from "../components/Token.vue";
-import Select from '../components/Select.vue';
-import Buckets from '../components/Buckets.vue';
-import Migration from '../components/Migration.vue';
-import Results from '../components/Results.vue';
+import Login from "../components/LoginForm.vue";
+import Token from "../components/APITokenForm.vue";
+import Select from '../components/ProjectSelection.vue';
+import Buckets from '../components/BucketTable.vue';
+import Migration from '../components/BucketMigration.vue';
+import Results from '../components/MigrationResults.vue';
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from '../scripts/openstack';
 
 const step = ref(1);

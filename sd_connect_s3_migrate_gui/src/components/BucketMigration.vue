@@ -24,7 +24,7 @@
     <section>
       The following buckets will be migrated:
       <ul>
-        <li v-for="bucket in migrateBuckets">
+        <li v-for="bucket in migrateBuckets" :key="bucket.value.name">
           {{ bucket.value.name }} -> {{ convertBucketName(bucket.value.name) }} {{
             // Flag casese where bucket name is not changed in migration
             bucket.value.name === convertBucketName(bucket.value.name)
@@ -521,7 +521,6 @@ async function migrateBucketObjects(bucket) {
  * @param {string} bucket.value.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
-  let ACLs = {};
   // Currently we assume there are no bucket policies present
   // TODO: do we want to check if they exist?
   let policy = {
@@ -529,7 +528,7 @@ async function migrateBucketSharing(bucket) {
     "Statement": [],
   };
   // Retrieve the bucket ACLs
-  ACLs = await getBucketACLs(scopedToken, bucket.value.name);
+  const ACLs = await getBucketACLs(scopedToken, bucket.value.name);
   // Add statements for all read rights
   if (ACLs?.read?.length > 0) {
     for (const project of ACLs.read) {
@@ -581,12 +580,12 @@ async function migrateBucketSharing(bucket) {
         `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". The policy was malformed.`,
       );
       return;
-    } else if (caught instanceof S3ServiceException) {
+    } else if (e instanceof S3ServiceException) {
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${caught.name}: ${caught.message}`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${e.name}: ${e.message}`,
       );
     } else {
-      throw caught;
+      throw e;
     }
   }
 
@@ -612,7 +611,7 @@ async function createNewBucket(bucket) {
       const headBucket = new HeadBucketCommand({
         Bucket: convertBucketName(bucket),
       });
-      const resp = await client.send(headBucket);
+      await client.send(headBucket);
       return;
     } catch(e) {
       console.log(e);

@@ -9,7 +9,7 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "npx eslint src"
   },
   "keywords": [],
   "author": {
@@ -27,8 +27,12 @@
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
     "@electron/fuses": "^1.8.0",
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "electron": "39.2.7",
+    "eslint": "^10.0.2",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.3.0",
     "vite": "^5.4.21"
   },
   "dependencies": {

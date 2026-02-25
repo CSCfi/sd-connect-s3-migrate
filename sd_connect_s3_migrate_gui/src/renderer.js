@@ -33,13 +33,13 @@ import { createApp } from 'vue';
 import { defineCustomElements } from '@cscfi/csc-ui/loader';
 import { vControl } from '@cscfi/csc-ui-vue';
 
-import Migrate from './pages/Migrate.vue';
+import MigrationPage from './pages/MigrationPage.vue';
 
 console.log(
   '👋 This message is being logged by "renderer.js", included via Vite',
 );
 
-const app = createApp(Migrate);
+const app = createApp(MigrationPage);
 
 app.directive('control', vControl);
 

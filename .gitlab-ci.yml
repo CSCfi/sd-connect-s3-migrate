@@ -34,10 +34,10 @@ lint-gui:
         - sd_connect_s3_migrate_gui/**/*
       compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script: |
-    echo "Placeholder for linting gui"
+    echo "Linting gui with eslint"
     cd sd_connect_s3_migrate_gui
-    pnpm install
-    pnpm lint
+    npm install
+    npm run lint
 
 release-job:
   extends: .automated-release

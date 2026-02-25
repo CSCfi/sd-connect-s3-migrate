@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, render, watch } from 'vue';
+import { onMounted, ref } from 'vue';
 import { getBuckets } from '../scripts/openstack';
 
 

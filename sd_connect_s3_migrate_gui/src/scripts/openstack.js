@@ -64,8 +64,6 @@ export function getS3endpoint() {
 
 // Discover available projects from an unscoped token
 export async function discoverTokenProjects(token) {
-  let projects = [];
-
   const resp = await fetch(
     new URL("/v3/OS-FEDERATION/projects", auth_endpoint),
     {
@@ -81,7 +79,7 @@ export async function discoverTokenProjects(token) {
   }
 
   const resp_projects = await resp.json();
-  projects = resp_projects.projects.filter(project => project.enabled);
+  const projects = resp_projects.projects.filter(project => project.enabled);
 
   return projects;
 }
@@ -152,7 +150,7 @@ export async function getEC2Credentials(token, projectId) {
     return;
   }
 
-  let ec2 = {};
+  let ec2;
 
   try {
     const resp = await fetch(
