@@ -12,9 +12,9 @@
 
     <div id="steps-wrapper" v-else>
       <c-steps v-model="step">
-        <c-step>{{ active_project ? `Selected project: ${active_project.name}` : "Select project" }}</c-step>
+        <c-step>Select project</c-step>
 
-        <c-step>{{ api_token ? "API token retrieved" : "Add API key" }}</c-step>
+        <c-step>Add API key</c-step>
 
         <c-step>{{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets" }}</c-step>
 
@@ -23,12 +23,12 @@
         <c-step>Conversion complete</c-step>
       </c-steps>
 
-      <div id="select-card" v-if="step == 1">
+      <div id="select-card" v-show="step == 1">
         <Select @selectProject="selectProjectAndScopeToken" :projects="projects" />
       </div>
 
-      <div id="token-card" v-if="step == 2">
-        <Token @gotToken="handleAddAPIToken" :project="active_project" :user="user" />
+      <div id="token-card" v-show="step == 2">
+        <Token @gotToken="handleAddAPIToken" @goBack="goBack" :project="active_project" />
       </div>
 
       <div id="buckets-card" v-if="step == 3">
@@ -109,9 +109,8 @@ async function selectProjectAndScopeToken(project) {
 
 // Handle API token addition
 async function handleAddAPIToken(token) {
-  console.log(token);
-
   api_token = token;
+  console.log(api_token);
 
   step.value += 1;
 }
@@ -130,6 +129,10 @@ async function handleBucketsMigrated(buckets) {
   console.log(migratedBuckets);
 
   step.value += 1;
+}
+
+function goBack() {
+  step.value--;
 }
 </script>
 
