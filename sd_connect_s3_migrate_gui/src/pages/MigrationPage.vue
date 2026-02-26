@@ -72,7 +72,7 @@ let unscopedToken = "";
 let projects = [];
 
 // Data gained from step 1
-let active_project = "";
+let active_project;
 let scopedToken = "";
 
 // Data gained from step 2
