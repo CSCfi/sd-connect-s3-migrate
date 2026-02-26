@@ -6,38 +6,36 @@
     </c-toolbar>
     <div id="separator"></div>
     <!-- Main contents for the application -->
-    <div id="login-card" v-if="step == 1">
+    <div id="login-card" v-if="step == 0">
       <Login @loginSuccessful="handleProjectDiscovery" />
     </div>
 
-    <div v-else>
+    <div id="steps-wrapper" v-else>
       <c-steps v-model="step">
         <c-step>{{ active_project ? `Selected project: ${active_project.name}` : "Select project" }}</c-step>
 
-        <c-step>{{ api_token ? "API token retrieved" : "Retrieve an API token" }}</c-step>
+        <c-step>{{ api_token ? "API token retrieved" : "Add API key" }}</c-step>
 
-        <c-step>
-          {{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets for migration" }}
-        </c-step>
+        <c-step>{{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets" }}</c-step>
 
-        <c-step>Migrate buckets</c-step>
+        <c-step>Data conversion</c-step>
 
-        <c-step>Migration result</c-step>
+        <c-step>Conversion complete</c-step>
       </c-steps>
 
-      <div id="select-card" v-if="step == 2">
+      <div id="select-card" v-if="step == 1">
         <Select @selectProject="selectProjectAndScopeToken" :projects="projects" />
       </div>
 
-      <div id="token-card" v-if="step == 3">
+      <div id="token-card" v-if="step == 2">
         <Token @gotToken="handleAddAPIToken" :project="active_project" :user="user" />
       </div>
 
-      <div id="buckets-card" v-if="step == 4">
+      <div id="buckets-card" v-if="step == 3">
         <Buckets @selectBuckets="handleSelectBuckets" :scopedToken="scopedToken" />
       </div>
 
-      <div id="migration-card" v-if="step == 5">
+      <div id="migration-card" v-if="step == 4">
         <Migration
           @bucketsMigrated="handleBucketsMigrated"
           :buckets="buckets"
@@ -47,7 +45,7 @@
         />
       </div>
 
-      <div id="results-card" v-if="step == 6">
+      <div id="results-card" v-if="step == 5">
         <Results :migratedBuckets="migratedBuckets" />
       </div>
     </div>
@@ -66,24 +64,24 @@ import Migration from "../components/BucketMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
 
-const step = ref(1);
+const step = ref(0);
 
-// Data gained from step 1
+// Data gained from login
 let user = "";
 let unscopedToken = "";
 let projects = [];
 
-// Data gained from step 2
+// Data gained from step 1
 let active_project = "";
 let scopedToken = "";
 
-// Data gained from step 3
+// Data gained from step 2
 let api_token = "";
 
-// Data gained from step 4
+// Data gained from step 3
 let buckets = [];
 
-// Data gained from step 5
+// Data gained from step 4
 let migratedBuckets = {};
 
 // Handle the project discovery from unscoped token
@@ -101,7 +99,6 @@ async function handleProjectDiscovery(unscoped, username) {
 
 // Handle project selection
 async function selectProjectAndScopeToken(project) {
-  console.log(project);
   active_project = project;
 
   scopedToken = await getScopedToken(unscopedToken, active_project.id);
@@ -136,11 +133,16 @@ async function handleBucketsMigrated(buckets) {
 }
 </script>
 
-<style lang="css">
-#login-card {
+<style lang="css" scoped>
+#login-card,
+#steps-wrapper {
   width: 50%;
   margin: auto;
   padding: 5rem 0;
+}
+
+#steps-wrapper {
+  width: 90%;
 }
 
 #separator {
@@ -148,5 +150,9 @@ async function handleBucketsMigrated(buckets) {
   height: 8px;
   width: 100%;
   background-color: var(--c-primary-200);
+}
+
+c-steps {
+  padding-bottom: 3rem;
 }
 </style>
