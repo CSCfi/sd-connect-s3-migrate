@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Configure UI linting and formatting (#37)
 - (users) the UI can now be used to copy over Swift objects to S3 compatible bucket naming scheme and file format
 - bucket creation
 - ec2 credential retrieval
