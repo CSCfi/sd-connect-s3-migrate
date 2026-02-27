@@ -16,3 +16,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - barebones migration results view
 - sharing ACL conversion from Swift ACL to AWS bucket policies
 - object copy and multipart migration capability
+
+### Changed
+
+- Updated login view accordingly to Figma (#24)
