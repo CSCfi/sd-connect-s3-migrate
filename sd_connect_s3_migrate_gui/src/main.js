@@ -1,6 +1,6 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'node:path';
-import started from 'electron-squirrel-startup';
+import { app, BrowserWindow } from "electron";
+import path from "node:path";
+import started from "electron-squirrel-startup";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -28,31 +28,29 @@ const createWindow = () => {
     width: 1920,
     height: 1080,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       webSecurity: false,
     },
   });
 
-  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
-    (details, callback) => {
-        const { requestHeaders } = details;
-        UpsertKeyValue(requestHeaders, 'Origin', '*');
-        UpsertKeyValue(requestHeaders, 'Sec-Fetch-Mode', 'no-cors');
-        UpsertKeyValue(requestHeaders, 'Sec-Fetch-Site', 'none');
-        UpsertKeyValue(requestHeaders, 'Sec-Fetch-Dest', 'document');
-        callback({
-          requestHeaders,
-        });
-    },
-  );
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    const { requestHeaders } = details;
+    UpsertKeyValue(requestHeaders, "Origin", "*");
+    UpsertKeyValue(requestHeaders, "Sec-Fetch-Mode", "no-cors");
+    UpsertKeyValue(requestHeaders, "Sec-Fetch-Site", "none");
+    UpsertKeyValue(requestHeaders, "Sec-Fetch-Dest", "document");
+    callback({
+      requestHeaders,
+    });
+  });
 
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const { responseHeaders } = details;
-    UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Origin', ['*']);
-    UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Headers', ['*']);
-    UpsertKeyValue(responseHeaders, 'Access-Control-Expose-Headers', ['*']);
+    UpsertKeyValue(responseHeaders, "Access-Control-Allow-Origin", ["*"]);
+    UpsertKeyValue(responseHeaders, "Access-Control-Allow-Headers", ["*"]);
+    UpsertKeyValue(responseHeaders, "Access-Control-Expose-Headers", ["*"]);
     // Prevent executing scripts that are not sourced from the local environment
-    UpsertKeyValue(responseHeaders, 'Content-Security-Policy', ['script-src \'self\'']);
+    UpsertKeyValue(responseHeaders, "Content-Security-Policy", ["script-src 'self'"]);
     callback({
       responseHeaders,
     });
@@ -77,7 +75,7 @@ app.whenReady().then(() => {
 
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
@@ -87,8 +85,8 @@ app.whenReady().then(() => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });

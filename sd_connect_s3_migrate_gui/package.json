@@ -9,7 +9,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint-format": "npx eslint src",
+    "lint-format-fix": "npx eslint src --fix"
   },
   "keywords": [],
   "author": {
@@ -27,15 +28,21 @@
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
     "@electron/fuses": "^1.8.0",
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "electron": "39.2.7",
+    "eslint": "^10.0.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.3.0",
+    "prettier": "^3.8.1",
     "vite": "^5.4.21"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",
     "@cscfi/csc-ui": "^3.0.16",
     "@cscfi/csc-ui-vue": "^0.0.2",
-    "csc-ui": "0.9.5",
     "electron-squirrel-startup": "^1.0.1",
     "transliteration": "^2.6.1",
     "vue": "^3.5.26"

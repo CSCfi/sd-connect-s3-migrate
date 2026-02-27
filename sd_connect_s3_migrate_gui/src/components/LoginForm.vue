@@ -2,9 +2,8 @@
   <div>
     <h1>Login to SD Connect Conversion tool</h1>
     <p>
-      SD Connect Conversion tool allows you to easily
-       convert your files from SD Connect 1.0 and 2.0
-       to be compatible with SD Connect 3.0.
+      SD Connect Conversion tool allows you to easily convert your files from SD Connect 1.0 and 2.0 to be compatible
+      with SD Connect 3.0.
     </p>
     <p>Login with your CSC credentials.</p>
     <form @submit.prevent="allasLogin">
@@ -13,7 +12,7 @@
         v-model="username"
         :valid="!loginFailed"
         hide-details
-        @changeValue="loginFailed=false"
+        @changeValue="loginFailed = false"
         @keyup.enter="allasLogin"
       />
       <c-text-field
@@ -22,29 +21,24 @@
         v-model="password"
         :valid="!loginFailed"
         validation="CSC username or password is incorrect"
-        @changeValue="loginFailed=false"
+        @changeValue="loginFailed = false"
         @keyup.enter="allasLogin"
       />
-      <c-button
-        size="large"
-        type="submit"
-      >Log in</c-button>
+      <c-button size="large" type="submit">Log in</c-button>
     </form>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { loginWithUserpass } from '../scripts/openstack';
+import { ref } from "vue";
+import { loginWithUserpass } from "../scripts/openstack";
 
 let username = "";
 let password = "";
 let unscoped = "";
 let loginFailed = ref(false);
 
-const emit = defineEmits([
-  "loginSuccessful",
-]);
+const emit = defineEmits(["loginSuccessful"]);
 
 async function allasLogin() {
   if (!username || !password) {

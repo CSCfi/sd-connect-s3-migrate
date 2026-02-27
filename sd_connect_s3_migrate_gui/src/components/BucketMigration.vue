@@ -1,5 +1,4 @@
 <template>
-
   <h2>Migrating buckets</h2>
 
   <div v-if="!migrating">
@@ -13,37 +12,33 @@
         <li>migrate possible shared access grants</li>
       </ul>
     </section>
-  
+
     <section>
-      The maximum amount of files to be migrated: {{ totalObjects }} (some files can be skipped if bucket name does not change).
+      The maximum amount of files to be migrated: {{ totalObjects }} (some files can be skipped if bucket name does not
+      change).
     </section>
-    <section>
-      The maximum amount of data to be migrated: {{ getHumanReadableSize( totalSize, "en" ) }}
-    </section>
-  
+    <section>The maximum amount of data to be migrated: {{ getHumanReadableSize(totalSize, "en") }}</section>
+
     <section>
       The following buckets will be migrated:
       <ul>
-        <li v-for="bucket in migrateBuckets">
-          {{ bucket.value.name }} -> {{ convertBucketName(bucket.value.name) }} {{
+        <li v-for="bucket in migrateBuckets" :key="bucket.value.name">
+          {{ bucket.value.name }} -> {{ convertBucketName(bucket.value.name) }}
+          {{
             // Flag casese where bucket name is not changed in migration
-            bucket.value.name === convertBucketName(bucket.value.name)
-              ? "(no name change in migration)"
-              : ""
+            bucket.value.name === convertBucketName(bucket.value.name) ? "(no name change in migration)" : ""
           }}
           <ul v-if="bucket.value.currentlyMigrating">
             <li v-if="bucket.value.totalHeadersDone < bucket.value.totalHeaders">
-              Migrating headers: {{ bucket.value.totalHeadersDone }} / {{ bucket.value.totalHeaders }} (migrating {{ bucket.value.currentlyMigratingFile }})
+              Migrating headers: {{ bucket.value.totalHeadersDone }} / {{ bucket.value.totalHeaders }} (migrating
+              {{ bucket.value.currentlyMigratingFile }})
             </li>
             <li v-else-if="bucket.value.totalObjectsDone < bucket.value.totalObjects">
-              Migrating files: {{ bucket.value.totalObjectsDone }} / {{ bucket.value.totalObjects }} (current file: {{ bucket.value.currentlyMigratingFile }})
+              Migrating files: {{ bucket.value.totalObjectsDone }} / {{ bucket.value.totalObjects }} (current file:
+              {{ bucket.value.currentlyMigratingFile }})
             </li>
-            <li v-else-if="!bucket.value.sharingMigrated">
-              Migrating sharing
-            </li>
-            <li v-else>
-              Migration done
-            </li>
+            <li v-else-if="!bucket.value.sharingMigrated">Migrating sharing</li>
+            <li v-else>Migration done</li>
           </ul>
         </li>
       </ul>
@@ -55,21 +50,18 @@
   </div>
 
   <div v-else>
-
     <h3>Migration progress</h3>
     <c-progress-bar :value="totalObjectsDone / totalObjects" />
-
   </div>
-
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref } from "vue";
 
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
 // Dependency quickly audited in approx three hours on 26.1.2026, Signed: Sampsa Penna
-import { slugify } from 'transliteration';
+import { slugify } from "transliteration";
 import {
   CompleteMultipartUploadCommand,
   CreateBucketCommand,
@@ -81,11 +73,11 @@ import {
   S3Client,
   S3ServiceException,
   UploadPartCommand,
-  UploadPartCopyCommand
-} from '@aws-sdk/client-s3';
+  UploadPartCopyCommand,
+} from "@aws-sdk/client-s3";
 
-import { SD_CONNECT_API_URL } from '../scripts/config';
-import { timeout } from '../scripts/common';
+import { SD_CONNECT_API_URL } from "../scripts/config";
+import { timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
@@ -93,25 +85,17 @@ import {
   getObject,
   getObjectEtag,
   getObjectMeta,
-  getObjects
-} from '../scripts/openstack';
+  getObjects,
+} from "../scripts/openstack";
 
-
-const {
-  buckets,
-  scopedToken,
-  activeProject,
-  s3address,
-} = defineProps([
+const { buckets, scopedToken, activeProject, s3address } = defineProps([
   "buckets",
   "scopedToken",
   "activeProject",
   "s3address",
 ]);
 
-const emit = defineEmits([
-  "bucketsMigrated",
-]);
+const emit = defineEmits(["bucketsMigrated"]);
 
 let totalObjects = ref(0);
 let totalSize = ref(0);
@@ -158,17 +142,19 @@ onMounted(() => {
     totalObjects.value += bucket.count;
     totalSize.value += bucket.bytes;
 
-    migrateBuckets.value.push(ref({
-      name: bucket.name,
-      totalObjects: bucket.count,
-      totalObjectsDone: 0,
-      totalHeaders: bucket.count,
-      totalHeadersDone: 0,
-      currentlyMigrating: false,
-      currentlyMigratingFile: "",
-      sharingMigrated: false,
-      objects: [],
-    }));
+    migrateBuckets.value.push(
+      ref({
+        name: bucket.name,
+        totalObjects: bucket.count,
+        totalObjectsDone: 0,
+        totalHeaders: bucket.count,
+        totalHeadersDone: 0,
+        currentlyMigrating: false,
+        currentlyMigratingFile: "",
+        sharingMigrated: false,
+        objects: [],
+      }),
+    );
   }
 
   console.log(totalObjects.value);
@@ -202,15 +188,13 @@ function getHumanReadableSize(val, locale) {
   return `${result} ${BYTE_UNITS[unitIndex]}`;
 }
 
-
 /**
- * Convert the bucket name to a compatible one with best effort 
+ * Convert the bucket name to a compatible one with best effort
  * @param {string} bucket - the name of the bucket
  */
 function convertBucketName(bucket) {
   // Convert to ascii slug, truncating to 63 characters
-  let slug = slugify(`${bucket}`, {trim: true})
-    .substring(0, 63);
+  let slug = slugify(`${bucket}`, { trim: true }).substring(0, 63);
 
   // If the slug ends in a dash, drop it
   if (slug[62] === "-") {
@@ -228,7 +212,6 @@ function convertBucketName(bucket) {
   if (bucket == slug) return slug;
   else return `migrated-${slug}`;
 }
-
 
 /**
  * Migrate bucket object headers under the s3 compatible bucket name
@@ -264,7 +247,7 @@ async function migrateBucketHeaders(bucket) {
 
     return;
   }
-  
+
   // Migrate bucket headers for objects that require it
   for (const object of bucket.value.objects) {
     // Skip potentially done objects to continue from saved migration state
@@ -275,7 +258,7 @@ async function migrateBucketHeaders(bucket) {
 }
 
 /**
- * 
+ *
  * @param {string} bucket - the name of the bucket the object is in
  * @param {string} key - the key of the object to be copied
  * @param {string} manifest - the DLO manifest of the object from swift side
@@ -337,7 +320,7 @@ async function multipartCopyObject(bucket, key, manifest) {
 }
 
 /**
- * 
+ *
  * @param {string} bucket - the name of the bucket the object is in
  * @param {string} key - the key of the object to be copied
  */
@@ -359,7 +342,7 @@ async function conventionalCopyObject(bucket, key) {
       const putObjectResp = await client.send(putObject);
       console.log(putObjectResp);
     } catch (e) {
-      console.log(e)
+      console.log(e);
     }
 
     return;
@@ -378,7 +361,7 @@ async function conventionalCopyObject(bucket, key) {
   if (!uploadId) {
     console.log("No multipart id for object, aborting.");
     return;
-  };
+  }
 
   // Cache for the multipart parts
   let multipartParts = [];
@@ -403,7 +386,7 @@ async function conventionalCopyObject(bucket, key) {
         PartNumber: partNumber,
       });
       partNumber++;
-    } catch (e)  {
+    } catch (e) {
       console.log(e);
     }
   }
@@ -438,7 +421,7 @@ async function migrateBucketObjects(bucket) {
       bucket.value.totalObjectsDone++;
       continue;
     }
-    
+
     // Skip objects that are just SD Connect v1 segments
     if (object.key.match(".segments")) {
       bucket.value.totalObjectsDone++;
@@ -472,14 +455,14 @@ async function migrateBucketObjects(bucket) {
         - In case the bucket can't be accessed via S3 API even in legacy mode,
           copy by proxying the object through user's machine
     */
-    
+
     let copyNeeded = false;
     // If the bucket name changes we need to copy the object
     if (bucket.value.name != convertBucketName(bucket.value.name)) copyNeeded = true;
     // If the object is segmented we need to copy the object
     let manifest = await checkObjectManifest(scopedToken, bucket.value.name, object.key);
     if (manifest) copyNeeded = true;
-    
+
     // Skip copying the object if it need not be copied
     if (!copyNeeded) continue;
 
@@ -506,7 +489,7 @@ async function migrateBucketObjects(bucket) {
 
       object.contentDone = true;
     } catch (e) {
-      console.log(e)
+      console.log(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
       // TODO: revert to previous manifest
     }
@@ -521,44 +504,45 @@ async function migrateBucketObjects(bucket) {
  * @param {string} bucket.value.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
-  let ACLs = {};
   // Currently we assume there are no bucket policies present
   // TODO: do we want to check if they exist?
   let policy = {
-    "Version": "2012-10-17",
-    "Statement": [],
+    Version: "2012-10-17",
+    Statement: [],
   };
   // Retrieve the bucket ACLs
-  ACLs = await getBucketACLs(scopedToken, bucket.value.name);
+  const ACLs = await getBucketACLs(scopedToken, bucket.value.name);
   // Add statements for all read rights
   if (ACLs?.read?.length > 0) {
     for (const project of ACLs.read) {
       let newStatement = {
-        "Sid": "GrantSDConnectSharedAccessToProject",
-        "Effect": "Allow",
-        "Principal": {
-          "AWS": `arn:aws:iam::${project}:root`,
+        Sid: "GrantSDConnectSharedAccessToProject",
+        Effect: "Allow",
+        Principal: {
+          AWS: `arn:aws:iam::${project}:root`,
         },
-        "Actions": [
+        Actions: [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectTagging",
           "s3:GetObjectVersion",
-          ...(
-            // If the project exists in the write ACL, also add the write statements.
-            // We don't sync bare write rights as non-supported.
-            ACLs.write.findIndex(i => i == project) >= 0
+          ...// If the project exists in the write ACL, also add the write statements.
+          // We don't sync bare write rights as non-supported.
+          (ACLs.write.findIndex((i) => i == project) >= 0
             ? [
-              "s3:PutObject",
-              "s3:DeleteObject",
-              "s3:AbortMultipartUpload",
-              "s3:ListMultipartUploadParts",
-              "s3:ListBucketMultipartUploads",
-            ] : []
-          )
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:AbortMultipartUpload",
+                "s3:ListMultipartUploadParts",
+                "s3:ListBucketMultipartUploads",
+              ]
+            : []),
         ],
-        "Resource": [`arn:aws:s3:::${convertBucketName(bucket.value.name)}`, `arn:aws:s3:::${convertBucketName(bucket.value.name)}/*`],
-      }
+        Resource: [
+          `arn:aws:s3:::${convertBucketName(bucket.value.name)}`,
+          `arn:aws:s3:::${convertBucketName(bucket.value.name)}/*`,
+        ],
+      };
 
       // Append the new statement to the list of statements
       policy.Statement.push(newStatement);
@@ -572,21 +556,18 @@ async function migrateBucketSharing(bucket) {
     await client.send(command);
     console.log(`Added bucket policy for ${convertBucketName(bucket.value.name)}`);
   } catch (e) {
-    if (
-      e instanceof S3ServiceException &&
-      e.name === "MalformedPolicy"
-    ) {
+    if (e instanceof S3ServiceException && e.name === "MalformedPolicy") {
       // Shamelessly recycle the error handling from AWS docs
       console.error(
         `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". The policy was malformed.`,
       );
       return;
-    } else if (caught instanceof S3ServiceException) {
+    } else if (e instanceof S3ServiceException) {
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${caught.name}: ${caught.message}`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${e.name}: ${e.message}`,
       );
     } else {
-      throw caught;
+      throw e;
     }
   }
 
@@ -612,9 +593,9 @@ async function createNewBucket(bucket) {
       const headBucket = new HeadBucketCommand({
         Bucket: convertBucketName(bucket),
       });
-      const resp = await client.send(headBucket);
+      await client.send(headBucket);
       return;
-    } catch(e) {
+    } catch (e) {
       console.log(e);
     }
 
@@ -641,23 +622,22 @@ async function beginMigration() {
       accessKeyId: ec2.access,
       secretAccessKey: ec2.secret,
     },
-  })
+  });
 
   // Iterate over all buckets flagged for migration
   for (const bucket of migrateBuckets.value) {
     // Retrieve the list of bucket objects
     let objects = await getObjects(scopedToken, bucket.value.name);
     // Format the object listing according to our requirements
-    bucket.value.objects =
-      objects.map(object => {
-        return {
-          key: object.name,
-          headerDone: false,
-          contentDone: false,
-          isSegmented: object.bytes == 0 ? true : false,
-          manifestBackup: "",
-        };
-      });
+    bucket.value.objects = objects.map((object) => {
+      return {
+        key: object.name,
+        headerDone: false,
+        contentDone: false,
+        isSegmented: object.bytes == 0 ? true : false,
+        manifestBackup: "",
+      };
+    });
 
     // Flag the bucket as actively migrated
     bucket.value.currentlyMigrating = true;
@@ -700,7 +680,9 @@ async function beginMigration() {
   }
 
   // Emit the migrate process state after finalize
-  emit("bucketsMigrated", migrateBuckets.value.map(bucket => bucket.value));
+  emit(
+    "bucketsMigrated",
+    migrateBuckets.value.map((bucket) => bucket.value),
+  );
 }
-
 </script>

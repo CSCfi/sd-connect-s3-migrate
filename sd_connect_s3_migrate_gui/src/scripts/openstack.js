@@ -4,39 +4,33 @@ const auth_endpoint = "https://pouta-test.csc.fi:5001";
 let object_storage_endpoint = "";
 let userId = "";
 
-
 // Login using username and password
 export async function loginWithUserpass(username, password) {
   let unscoped = "";
 
-  const resp = await fetch(
-    new URL("/v3/auth/tokens", auth_endpoint),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        auth: {
-          identity: {
-            methods: [
-              "password"
-            ],
-            password: {
-              user: {
-                name: username,
-                domain: {
-                  name: "Default",
-                },
-                password: password,
+  const resp = await fetch(new URL("/v3/auth/tokens", auth_endpoint), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      auth: {
+        identity: {
+          methods: ["password"],
+          password: {
+            user: {
+              name: username,
+              domain: {
+                name: "Default",
               },
+              password: password,
             },
           },
-          scope: "unscoped",
         },
-      }),
-    },
-  );
+        scope: "unscoped",
+      },
+    }),
+  });
 
   if (resp.status >= 400) {
     console.log("Login not successful");
@@ -61,62 +55,50 @@ export function getS3endpoint() {
   return object_storage_endpoint.replaceAll("/swift/v1", "");
 }
 
-
 // Discover available projects from an unscoped token
 export async function discoverTokenProjects(token) {
-  let projects = [];
-
-  const resp = await fetch(
-    new URL("/v3/OS-FEDERATION/projects", auth_endpoint),
-    {
-      method: "GET",
-      headers: {
-        "X-Auth-Token": token,
-      }
-    }
-  );
+  const resp = await fetch(new URL("/v3/OS-FEDERATION/projects", auth_endpoint), {
+    method: "GET",
+    headers: {
+      "X-Auth-Token": token,
+    },
+  });
 
   if (resp.status != 200) {
     console.log("Could not retrieve projects");
   }
 
   const resp_projects = await resp.json();
-  projects = resp_projects.projects.filter(project => project.enabled);
+  const projects = resp_projects.projects.filter((project) => project.enabled);
 
   return projects;
 }
 
-
 // Retrieve a scoped project token
 export async function getScopedToken(token, project) {
   let scoped = "";
-  
-  const resp = await fetch(
-    new URL("/v3/auth/tokens", auth_endpoint),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        auth: {
-          identity: {
-            methods: [
-              "token"
-            ],
-            token: {
-              id: token,
-            },            
-          },
-          scope: {
-            project: {
-              id: project,
-            },
+
+  const resp = await fetch(new URL("/v3/auth/tokens", auth_endpoint), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      auth: {
+        identity: {
+          methods: ["token"],
+          token: {
+            id: token,
           },
         },
-      }),
-    },
-  );
+        scope: {
+          project: {
+            id: project,
+          },
+        },
+      },
+    }),
+  });
 
   if (resp.status != 200 && resp.status != 201) {
     console.log("Could not retrieve a scoped token.");
@@ -127,18 +109,14 @@ export async function getScopedToken(token, project) {
 
   // Cache the endpoint for object storage
   let login_meta = await resp.json();
-  object_storage_endpoint =
-    login_meta.token.catalog
-    .filter(service => service.type === "object-store")[0]
-    .endpoints
-    .filter(endpoint => endpoint.interface === "public")[0]
-    .url;
+  object_storage_endpoint = login_meta.token.catalog
+    .filter((service) => service.type === "object-store")[0]
+    .endpoints.filter((endpoint) => endpoint.interface === "public")[0].url;
 
   console.log(object_storage_endpoint);
 
   return scoped;
 }
-
 
 /**
  * Retrieve ec2 credentials using the scoped project token
@@ -152,41 +130,35 @@ export async function getEC2Credentials(token, projectId) {
     return;
   }
 
-  let ec2 = {};
+  let ec2;
 
   try {
-    const resp = await fetch(
-      new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint),
-      {
-        headers: {
-          "X-Auth-Token": token,
-        },
+    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint), {
+      headers: {
+        "X-Auth-Token": token,
       },
-    );
+    });
 
     const creds = await resp.json();
-    ec2 = creds?.credentials?.find(credential => credential?.type === "ec2" && credential?.tenant_id === projectId);
+    ec2 = creds?.credentials?.find((credential) => credential?.type === "ec2" && credential?.tenant_id === projectId);
     if (!ec2) {
-      throw new Error("No credentials listed")
+      throw new Error("No credentials listed");
     }
   } catch (e) {
-    console.log(e)
+    console.log(e);
     console.log("Failed to retrieve EC2 credentials.");
     console.log("Trying to generate EC2 credentials.");
 
-    const resp = await fetch(
-      new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint),
-      {
-        method: "POST",
-        headers: {
-          "X-Auth-Token": token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          "tenant_id": projectId,
-        }),
+    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint), {
+      method: "POST",
+      headers: {
+        "X-Auth-Token": token,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        tenant_id: projectId,
+      }),
+    });
 
     const creds = await resp.json();
     ec2 = creds?.credential;
@@ -197,10 +169,9 @@ export async function getEC2Credentials(token, projectId) {
   return ec2;
 }
 
-
 /**
  * Fetch a list of buckets from the Openstack Swift API
- * @param {string} token 
+ * @param {string} token
  * @returns {Promise<Array>}
  */
 export async function getBuckets(token) {
@@ -213,7 +184,7 @@ export async function getBuckets(token) {
       const bucketURL = new URL("", object_storage_endpoint);
       // Use 100 as the bucket page limit
       bucketURL.searchParams.append("limit", 100);
-      bucketURL.searchParams.append("format", "json")
+      bucketURL.searchParams.append("format", "json");
       // Use the marker for paging the listings
       if (marker) {
         bucketURL.searchParams.append("marker", marker);
@@ -238,11 +209,10 @@ export async function getBuckets(token) {
   return buckets;
 }
 
-
 /**
  * Fetch the filtered bucket ACL header contents
- * @param {string} token 
- * @param {string} bucket 
+ * @param {string} token
+ * @param {string} bucket
  * @returns {Promise<Object>}
  */
 export async function getBucketACLs(token, bucket) {
@@ -267,18 +237,18 @@ export async function getBucketACLs(token, bucket) {
     // really supported for normal Allas users.
     if (readAcl) {
       ACLs.read = readAcl
-        .replaceAll(" ", "")  // get rid of spaces, that are allowed in Openstack spec
-        .split(",")  // split the listing to a list of share entries
-        .filter(item => !item.match(".r") && !item.match(".rlistings"))  // filter out global shares if they exist
-        .filter(item => !item.match("*.*"))  // filter out the authenticated global share if it exists
-        .map(item => item.split(":")[0]) // yank the projects from the ACL listing, we don't care about the trailing asterisk
+        .replaceAll(" ", "") // get rid of spaces, that are allowed in Openstack spec
+        .split(",") // split the listing to a list of share entries
+        .filter((item) => !item.match(".r") && !item.match(".rlistings")) // filter out global shares if they exist
+        .filter((item) => !item.match("*.*")) // filter out the authenticated global share if it exists
+        .map((item) => item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
     if (writeAcl) {
       ACLs.write = writeAcl
-        .replaceAll(" ", "")  // get rid of spaces, that are allowed in Openstack spec
-        .split(",")  // split the listing to a list of share entries
-        .filter(item => !item.match("*.*"))  // filter out the authenticated global share if it exists
-        .map(item => !item.split(":")[0]) // yank the projects from the ACL listing, we don't care about the trailing asterisk
+        .replaceAll(" ", "") // get rid of spaces, that are allowed in Openstack spec
+        .split(",") // split the listing to a list of share entries
+        .filter((item) => !item.match("*.*")) // filter out the authenticated global share if it exists
+        .map((item) => !item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
   } catch (e) {
     console.log("Failed to retrieve bucket ACLs.");
@@ -289,11 +259,10 @@ export async function getBucketACLs(token, bucket) {
   return ACLs;
 }
 
-
 /**
  * Fetch a list of objects within a bucket
- * @param {string} token 
- * @param {string} bucket 
+ * @param {string} token
+ * @param {string} bucket
  * @returns {Promise<Array>}
  */
 export async function getObjects(token, bucket, prefix = "") {
@@ -335,7 +304,6 @@ export async function getObjects(token, bucket, prefix = "") {
   return objects;
 }
 
-
 /**
  * Retrieve the DLO manifest prefix for a Swift large object
  * @param {string} token - a scoped openstack auth token
@@ -347,7 +315,7 @@ export async function checkObjectManifest(token, bucket, key) {
   let manifest = "";
   try {
     const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
-    const resp = await fetch (objectURL, {
+    const resp = await fetch(objectURL, {
       method: "HEAD",
       headers: {
         "X-Auth-Token": token,
@@ -361,10 +329,9 @@ export async function checkObjectManifest(token, bucket, key) {
   } catch (e) {
     console.log(e);
   }
-  
+
   return manifest;
 }
-
 
 /**
  * Retrieve the required object metadata headers
@@ -380,7 +347,7 @@ export async function getObjectMeta(token, bucket, key) {
   };
   try {
     const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
-    const resp = await fetch (objectURL, {
+    const resp = await fetch(objectURL, {
       method: "HEAD",
       headers: {
         "X-Auth-Token": token,
@@ -395,7 +362,6 @@ export async function getObjectMeta(token, bucket, key) {
 
   return objectMeta;
 }
-
 
 /**
  * Retrieve a byte range of the object
@@ -414,10 +380,10 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
   try {
     let objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch(objectURL, {
-      method: "GET", 
+      method: "GET",
       headers: {
         "X-Auth-Token": token,
-        "Range": `bytes=${start}-${end}`,
+        Range: `bytes=${start}-${end}`,
       },
       cache: "no-cache",
     });
@@ -432,9 +398,8 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
   return object;
 }
 
-
 /**
- * 
+ *
  * @param {string} token - a scoped openstack auth token
  * @param {string} bucket - the bucket the object is in
  * @param {string} key - the name of the object
@@ -446,7 +411,7 @@ export async function getObjectEtag(token, bucket, key) {
   try {
     const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
     const resp = await fetch(objectURL, {
-      method: "HEAD", 
+      method: "HEAD",
       headers: {
         "X-Auth-Token": token,
       },
@@ -454,7 +419,7 @@ export async function getObjectEtag(token, bucket, key) {
 
     // retrieve the etag from the response
     etag = resp.headers.get("ETag");
-  } catch(e) {
+  } catch (e) {
     console.log(e);
   }
 
