@@ -1,15 +1,20 @@
 <template>
-
-  <h1>
-    SD Connect v2 -> v3 migration tool
-  </h1>
-
-  <div>
-
+  <div id="main">
+  <c-toolbar>
+    <c-csc-logo/>
+    SD Connect Conversion tool
+  </c-toolbar>
+  <div id="separator"></div>
+  <!-- Main contents for the application -->
+  <div
+    id="login-card"
+    v-if="step == 1"
+  >
+    <Login @loginSuccessful="handleProjectDiscovery" />
   </div>
 
-  <c-steps v-model="step">
-    <c-step>{{ user ? `Logged in as: ${user}` : `Log In` }}</c-step>
+  <div v-else>
+    <c-steps v-model="step">
     
     <c-step>{{ active_project ? `Selected project: ${active_project.name}` : "Select project" }}</c-step>
 
@@ -22,13 +27,6 @@
     <c-step>Migration result</c-step>
   </c-steps>
 
-  <!-- Main contents for the application -->
-  <div
-    id="login-card"
-    v-if="step == 1"
-  >
-    <Login @loginSuccessful="handleProjectDiscovery" />
-  </div>
 
   <div id="select-card" v-if="step == 2">
     <Select @selectProject="selectProjectAndScopeToken" :projects="projects" />
@@ -49,6 +47,8 @@
   <div id="results-card" v-if="step == 6">
     <Results :migratedBuckets="migratedBuckets" />
   </div>
+</div>
+</div>
 </template>
 
 <script setup>
@@ -137,10 +137,15 @@ async function handleBucketsMigrated(buckets) {
 <style lang="css">
 
 #login-card {
-  width: 60%;
+  width: 50%;
   margin: auto;
-  padding-top: 2rem;
-  padding-bottom: 2rem;
+  padding: 5rem 0;
 }
 
+#separator {
+  position: fixed;
+  height: 8px;
+  width: 100%;
+  background-color: var(--c-primary-200);
+}
 </style>

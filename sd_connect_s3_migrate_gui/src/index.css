@@ -2,22 +2,32 @@
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    var(--c-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
   width: 100%;
   height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+*, *::before, *::after {
+  /* Fixes e.g. c-text-fields overflowing parent */
+  box-sizing: border-box;
 }
 
 #app {
-
-  margin: auto;
-
-  height: 92%;
-  width: 96%;
-
   min-width: 800px;
   max-width: 2500px;
 
   min-height: 650px;
   max-height: 2000px;
+}
+
+#main {
+  padding: 0;
+  margin: 0;
+}
+
+h1 {
+  color: var(--c-primary-600);
 }
