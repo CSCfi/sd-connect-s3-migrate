@@ -1,31 +1,60 @@
 <template>
-  <h1>Retrieve an SD Connect API token</h1>
-
-  <ol>
-    <li>
-      Open the
-      <a href="https://sd-connect.sdqa.csc.fi/" target="_blank">SD Connect UI</a>
-      and log in with user {{ user }}
-    </li>
-    <li>Select the matching project, {{ project.name }}, from the project selection menu</li>
-    <li>
-      Paste the token into the underlying field, and click continue
-
-      <c-text-field v-model="api_token" label="Paste the SD Connect API token here"></c-text-field>
-
-      <c-button @click="emitToken">Add token</c-button>
-    </li>
-  </ol>
+  <div>
+    <p>
+      <b>Project:</b>
+      {{ project?.name }} {{ project?.description }}
+    </p>
+    <h1>Add temporary API key</h1>
+    <p>Create your API key via SD Connect user interface. Navigate to Support -> Create API key.</p>
+    <!--TODO add link when it exists-->
+    <c-link underline href="#" target="_blank">
+      See detailed instructions
+      <c-icon :path="mdiOpenInNew" />
+    </c-link>
+    <div class="text-wrapper">
+      <c-text-field
+        v-model="apiToken"
+        label="API key"
+        :valid="!showError"
+        @changeValue="showError = false"
+      ></c-text-field>
+    </div>
+    <c-row justify="space-between">
+      <c-button outlined @click="goBack" @keyup.enter="goBack">Cancel</c-button>
+      <c-button @click="emitToken" @keyup.enter="emitToken">Continue</c-button>
+    </c-row>
+  </div>
 </template>
 
 <script setup>
-const { user, project } = defineProps(["user", "project"]);
+import { ref } from "vue";
+import { mdiOpenInNew } from "@mdi/js";
 
-const emit = defineEmits(["gotToken"]);
+const { project } = defineProps(["project"]);
 
-let api_token = "";
+const emit = defineEmits(["gotToken", "goBack"]);
+
+const apiToken = ref();
+const showError = ref(false);
 
 function emitToken() {
-  emit("gotToken", api_token);
+  if (!apiToken.value) {
+    showError.value = true;
+    return;
+  }
+  emit("gotToken", apiToken.value);
+}
+
+function goBack() {
+  showError.value = false;
+  emit("goBack");
 }
 </script>
+
+<style scoped>
+/* wrap unwieldy c-text-field to style it */
+.text-wrapper {
+  width: 60%;
+  margin: 1.5rem 0;
+}
+</style>

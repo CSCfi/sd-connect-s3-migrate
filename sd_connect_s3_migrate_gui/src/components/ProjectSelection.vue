@@ -14,7 +14,7 @@
     >
       <c-option v-for="project in projects" :value="project" :key="project.name">{{ project.name }}</c-option>
     </c-select>
-    <c-button @click="selectProject">Continue</c-button>
+    <c-button @click="selectProject" @keyup.enter="selectProject">Continue</c-button>
   </div>
 </template>
 
@@ -37,11 +37,16 @@ function selectProject() {
 }
 </script>
 <style scoped>
+h1 {
+  margin-top: 3rem;
+}
+
 c-select {
   width: 60%;
   padding-top: 1rem;
 }
 c-button {
+  margin-top: 1.5rem;
   float: right;
 }
 </style>
