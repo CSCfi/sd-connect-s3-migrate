@@ -20,4 +20,5 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Adjust project selection step accordingly to Figma (#25)
 - Updated login view accordingly to Figma (#24)
