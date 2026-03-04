@@ -34,7 +34,7 @@ export function sign_api_request(apiKey, path, lifetime = 3600) {
   const toSign = `${validUntil}${path}`
 
   // Get the signature
-  const key = Buffer.from(key);
+  const key = Buffer.from(apiKey);
   return {
     signature: crypto.createHmac("sha256", key).update(toSign).digest("hex"),
     valid: validUntil,
