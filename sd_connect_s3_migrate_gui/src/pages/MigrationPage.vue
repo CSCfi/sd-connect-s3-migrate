@@ -1,6 +1,6 @@
 <template>
   <div id="main">
-    <c-toolbar>
+    <c-toolbar class="relative">
       <c-csc-logo />
       SD Connect Conversion tool
     </c-toolbar>
@@ -154,7 +154,7 @@ function goBack() {
 }
 
 #separator {
-  position: fixed;
+  position: relative;
   height: 8px;
   width: 100%;
   background-color: var(--c-primary-200);
