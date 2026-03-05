@@ -156,7 +156,7 @@ const quotaNeeded = computed(() => {
     if (bucket.count && bucket.bytes === 0) {
       // get bytes from segments bucket
       const segments = buckets.value.find((b) => b.name === `${bucket.name}_segments`);
-      if (segments?.bytes) return quota + segments.bytes;
+      return quota + (segments?.bytes ?? 0);
     } else {
       return quota + bucket.bytes;
     }
