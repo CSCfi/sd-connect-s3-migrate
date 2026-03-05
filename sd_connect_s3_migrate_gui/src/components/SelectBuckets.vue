@@ -177,21 +177,20 @@ function getRecommendedAction(bucket) {
   function isLowerCaseOrNum(char) {
     return /[\p{L}0-9]/u.test(char) && char === char.toLowerCase();
   }
+  // If the bucket contains whitespace, it's guaranteed to break S3
+  if (/[\s]/u.test(bucket.name)) {
+    return 5;
+  }
 
   // If the bucket doesn't have any bytes, but has content, it has likely
   // been filled with swift large objects
   if (!bucket.bytes && bucket.count) {
-    return 5;
+    return 4;
   }
 
   // If the bucket has a matching segemnts bucket with content, it likely
   // contains swift large objects
   if (buckets.value.find((nb) => nb.name == `${bucket.name}_segments`)?.count > 0) {
-    return 5;
-  }
-
-  // If the bucket contains whitespace, it's guaranteed to break S3
-  if (/[\s]/u.test(bucket.name)) {
     return 4;
   }
 
@@ -217,7 +216,7 @@ function getRecommendedAction(bucket) {
 
 function getBucketStatus(bucket) {
   const statusNum = getRecommendedAction(bucket);
-  if (statusNum <= 3) {
+  if (statusNum < 5) {
     return { type: "warning", value: "Optional" };
   }
   return { type: "error", value: "Must" };
