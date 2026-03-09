@@ -601,7 +601,7 @@ async function migrateBucketSharing(bucket) {
   if (oldSharingWhitelist.length > 0) {
     // Match the sharing whitelist project names with project ids
     let newSharingWhitelist = [];
-    oldSharingWhitelist.map(projectName => {
+    oldSharingWhitelist.map(async (projectName) => {
       let projectIds = await checkProjectIDs(projectName);
       if (projectIds?.id === undefined || projectIds?.name === undefined) {
         console.log(`No project IDs were available for project ${projectName}, skipping.`);
