@@ -134,15 +134,17 @@ const tableData = computed(() => {
             },
           ],
         },
-        status: {
-          value: status.value,
-          component: {
-            tag: "c-status",
-            params: {
-              type: status.type,
-            },
-          },
-        },
+        status: status
+          ? {
+              value: status.value,
+              component: {
+                tag: "c-status",
+                params: {
+                  type: status.type,
+                },
+              },
+            }
+          : { value: null },
         // keep bucket object in table data to simplify selection addition/removal
         bucket: {
           value: bucket,
@@ -216,10 +218,11 @@ function getRecommendedAction(bucket) {
 
 function getBucketStatus(bucket) {
   const statusNum = getRecommendedAction(bucket);
-  if (statusNum < 5) {
-    return { type: "warning", value: "Optional" };
+  if (statusNum >= 5) {
+    return { type: "error", value: "Urgent" };
   }
-  return { type: "error", value: "Must" };
+  // For now cases when migration not needed is not considered
+  return null;
 }
 </script>
 <style scoped>
