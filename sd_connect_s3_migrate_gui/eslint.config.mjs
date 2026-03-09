@@ -12,6 +12,7 @@ export default defineConfig([
     languageOptions: {
       globals: {
         ...globals.node,
+        ...globals.browser,
         MAIN_WINDOW_VITE_DEV_SERVER_URL: "readonly",
         MAIN_WINDOW_VITE_NAME: "readonly",
       },

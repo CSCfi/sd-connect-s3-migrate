@@ -1,6 +1,6 @@
 <template>
   <div id="main">
-    <c-toolbar>
+    <c-toolbar class="relative">
       <c-csc-logo />
       SD Connect Conversion tool
     </c-toolbar>
@@ -16,7 +16,7 @@
 
         <c-step>Add API key</c-step>
 
-        <c-step>{{ buckets.length > 0 ? `Selected buckets: ${buckets.length}` : "Select buckets" }}</c-step>
+        <c-step>Select buckets</c-step>
 
         <c-step>Data conversion</c-step>
 
@@ -32,7 +32,12 @@
       </div>
 
       <div id="buckets-card" v-if="step == 3">
-        <Buckets @selectBuckets="handleSelectBuckets" :scopedToken="scopedToken" />
+        <SelectBuckets
+          @selectBuckets="handleSelectBuckets"
+          @goBack="goBack"
+          :project="active_project"
+          :scopedToken="scopedToken"
+        />
       </div>
 
       <div id="migration-card" v-if="step == 4">
@@ -59,7 +64,7 @@ import { ref } from "vue";
 import Login from "../components/LoginForm.vue";
 import Token from "../components/APITokenForm.vue";
 import Select from "../components/ProjectSelection.vue";
-import Buckets from "../components/BucketTable.vue";
+import SelectBuckets from "../components/SelectBuckets.vue";
 import Migration from "../components/BucketMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
@@ -149,7 +154,7 @@ function goBack() {
 }
 
 #separator {
-  position: fixed;
+  position: relative;
   height: 8px;
   width: 100%;
   background-color: var(--c-primary-200);
