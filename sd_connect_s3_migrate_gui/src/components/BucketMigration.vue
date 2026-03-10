@@ -1,62 +1,39 @@
 <template>
-  <h2>Migrating buckets</h2>
-
-  <div v-if="!migrating">
-    <section>
-      The UI will perform the following operations for objects within the selected buckets:
-      <ul>
-        <li>change the bucket name to a compatible one, truncating if necessary</li>
-        <li>copy over the existing objects if required</li>
-        <li>concatenate possible segmented objects into an s3 compatible object</li>
-        <li>migrate the headers between buckets to preserve file access</li>
-        <li>migrate possible shared access grants</li>
-      </ul>
-    </section>
-
-    <section>
-      The maximum amount of files to be migrated: {{ totalObjects }} (some files can be skipped if bucket name does not
-      change).
-    </section>
-    <section>The maximum amount of data to be migrated: {{ getHumanReadableSize(totalSize, "en") }}</section>
-
-    <section>
-      The following buckets will be migrated:
-      <ul>
-        <li v-for="bucket in migrateBuckets" :key="bucket.value.name">
-          {{ bucket.value.name }} -> {{ convertBucketName(bucket.value.name) }}
-          {{
-            // Flag casese where bucket name is not changed in migration
-            bucket.value.name === convertBucketName(bucket.value.name) ? "(no name change in migration)" : ""
-          }}
-          <ul v-if="bucket.value.currentlyMigrating">
-            <li v-if="bucket.value.totalHeadersDone < bucket.value.totalHeaders">
-              Migrating headers: {{ bucket.value.totalHeadersDone }} / {{ bucket.value.totalHeaders }} (migrating
-              {{ bucket.value.currentlyMigratingFile }})
-            </li>
-            <li v-else-if="bucket.value.totalObjectsDone < bucket.value.totalObjects">
-              Migrating files: {{ bucket.value.totalObjectsDone }} / {{ bucket.value.totalObjects }} (current file:
-              {{ bucket.value.currentlyMigratingFile }})
-            </li>
-            <li v-else-if="!bucket.value.sharingMigrated">Migrating sharing</li>
-            <li v-else>Migration done</li>
-          </ul>
-        </li>
-      </ul>
-    </section>
-
-    <section>
-      <c-button @click="beginMigration().then(console.log('Migration finished.'))">Begin migration</c-button>
-    </section>
-  </div>
-
-  <div v-else>
-    <h3>Migration progress</h3>
-    <c-progress-bar :value="totalObjectsDone / totalObjects" />
+  <div>
+    <p>
+      <b>Project:</b>
+      {{ activeProject?.name }} {{ activeProject?.description }}
+    </p>
+    <h1>Conversion in process</h1>
+    <p>
+      Your buckets are being copied and converted to be compatible with SD Connect v3. This process may take a while.
+      You will see converted buckets within SD Connect UI with suffix "{{ bucketSuffix }}".
+    </p>
+    <div class="alert-wrapper">
+      <c-alert type="error">
+        <c-row gap="100" align="center">
+          <span class="alert-text">
+            We recommend that you don't upload files to this bucket to ensure smooth conversion process.
+          </span>
+          <c-link underline href="#" target="_blank">
+            See detailed instructions
+            <c-icon :path="mdiOpenInNew" />
+          </c-link>
+        </c-row>
+      </c-alert>
+    </div>
+    <div>
+      <p>
+        <b>Estimated conversion time:</b>
+        {{ getReadableTime(estimatedTime) }}
+      </p>
+    </div>
+    <c-data-table hide-footer :headers="headers" :data="tableData"></c-data-table>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
@@ -77,7 +54,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { SD_CONNECT_API_URL } from "../scripts/config";
-import { timeout } from "../scripts/common";
+import { estimatedBytesPerSec, getBucketStatus, getReadableTime, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
@@ -87,6 +64,7 @@ import {
   getObjectMeta,
   getObjects,
 } from "../scripts/openstack";
+import { mdiOpenInNew, mdiPail } from "@mdi/js";
 
 const { buckets, scopedToken, activeProject, s3address } = defineProps([
   "buckets",
@@ -97,12 +75,16 @@ const { buckets, scopedToken, activeProject, s3address } = defineProps([
 
 const emit = defineEmits(["bucketsMigrated"]);
 
-let totalObjects = ref(0);
-let totalSize = ref(0);
-
-let totalObjectsDone = ref(0);
-
-let migrating = ref(false);
+const totalSize = ref(0);
+const totalSizeDone = ref(0);
+const bucketSuffix = "-conv";
+const stages = {
+  starting: "starting",
+  sharing: "sharing",
+  headers: "headers",
+  objects: "objects",
+};
+const currentStage = ref(stages.starting);
 
 /*
 Migration process object definition
@@ -120,9 +102,11 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
     sharingMigrated: bool
     headersMigrated: bool
     currentlyMigratingFile: str
+    conversionNeed: int
     objects: [
       {
         key: str
+        bytes: int
         headerDone: bool
         contentDone: bool
         isSegmented: bool
@@ -139,8 +123,7 @@ let client;
 
 onMounted(() => {
   for (const bucket of buckets) {
-    totalObjects.value += bucket.count;
-    totalSize.value += bucket.bytes;
+    totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
 
     migrateBuckets.value.push(
       ref({
@@ -152,41 +135,126 @@ onMounted(() => {
         currentlyMigrating: false,
         currentlyMigratingFile: "",
         sharingMigrated: false,
+        headersMigrated: false,
+        conversionNeed: bucket.conversionNeed,
         objects: [],
       }),
     );
   }
-
-  console.log(totalObjects.value);
   console.log(totalSize.value);
   console.log(migrateBuckets.value);
+  // Migration started automatically on step
+  beginMigration();
+});
+
+const estimatedTime = computed(() => {
+  // Not taking into account sharing or headers
+  // or the fact that some objects may not need copying
+  const remaining = totalSize.value - totalSizeDone.value;
+  return Math.ceil(remaining / estimatedBytesPerSec);
+});
+
+/* TABLE */
+
+const headers = [
+  { key: "name", align: "center", value: "Name", sortable: false },
+  { key: "status", value: "Conversion need", sortable: false },
+  { key: "progress", align: "center", value: "", sortable: false },
+];
+
+const staticTableData = computed(() => {
+  return migrateBuckets.value.map((bucket) => {
+    const status = getBucketStatus(bucket.value.conversionNeed);
+    return {
+      name: {
+        value: null,
+        children: [
+          {
+            value: null,
+            component: {
+              tag: "c-icon",
+              params: {
+                path: mdiPail,
+                style: {
+                  marginRight: "0.5rem",
+                },
+              },
+            },
+          },
+          {
+            value: bucket.value.name,
+            component: {
+              tag: "span",
+            },
+          },
+        ],
+      },
+      status: status
+        ? {
+            value: status.value,
+            component: {
+              tag: "c-status",
+              params: {
+                type: status.type,
+              },
+            },
+          }
+        : { value: null },
+    };
+  });
 });
 
 /**
- * Get a human readable size of a bucket (copied over from SD Connect codebase)
- * @param {number} val - the size to parse
- * @param {string} locale - the locale to select correct decimal separator
+ * Display progress string dependent on migration stage
+ * @param {Object} bucket - object describing the bucket
  */
-function getHumanReadableSize(val, locale) {
-  const BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-
-  let size = val;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < BYTE_UNITS.length - 1) {
-    size /= 1024;
-    unitIndex++;
+function getProgressString(bucket) {
+  if (bucket.value.currentlyMigrating === true) {
+    switch (currentStage.value) {
+      case stages.starting:
+        return "Preparing for conversion...";
+      case stages.sharing:
+        return "Converting sharing...";
+      case stages.headers:
+        return "Preparing items for conversion...";
+      case stages.objects:
+        return `${bucket.value.totalObjectsDone}/${bucket.value.totalObjects} items converted`;
+    }
+  } else if (
+    bucket.value.sharingMigrated &&
+    bucket.value.headersMigrated &&
+    bucket.value.totalObjects === bucket.value.totalObjectsDone
+  ) {
+    // For converted buckets, display the object stage string
+    return `${bucket.value.totalObjectsDone}/${bucket.value.totalObjects} items converted`;
+  } else {
+    return "";
   }
-
-  const decimalSize = size.toFixed(1);
-  let result = decimalSize.toString();
-
-  if (locale === "fi") {
-    result = result.replace(".", ",");
-  }
-
-  return `${result} ${BYTE_UNITS[unitIndex]}`;
 }
+
+const tableData = computed(() => {
+  // No need to recompute all data on every object done
+  return staticTableData.value.map((row, i) => {
+    const bucket = migrateBuckets.value[i];
+    return {
+      ...row,
+      progress: {
+        value: getProgressString(bucket),
+        component: {
+          tag: "span",
+          params: {
+            style: {
+              // provide width to prevent row from visual glitch on update
+              minWidth: "35ch",
+            },
+          },
+        },
+      },
+    };
+  });
+});
+
+/* MIGRATION */
 
 /**
  * Convert the bucket name to a compatible one with best effort
@@ -210,7 +278,7 @@ function convertBucketName(bucket) {
   slug = slug.toLowerCase();
 
   if (bucket == slug) return slug;
-  else return `migrated-${slug}`;
+  else return `${slug}${bucketSuffix}`;
 }
 
 /**
@@ -229,6 +297,7 @@ async function migrateBucketHeaders(bucket) {
       bucket.value.totalHeadersDone++;
       object.headerDone = true;
     }
+    bucket.value.headersMigrated = true;
     return;
   }
 
@@ -244,6 +313,7 @@ async function migrateBucketHeaders(bucket) {
       bucket.value.totalHeadersDone++;
       object.headerDone = true;
     }
+    bucket.value.headersMigrated = true;
 
     return;
   }
@@ -323,13 +393,11 @@ async function multipartCopyObject(bucket, key, manifest) {
  *
  * @param {string} bucket - the name of the bucket the object is in
  * @param {string} key - the key of the object to be copied
+ * @param {int} size - object size
  */
-async function conventionalCopyObject(bucket, key) {
-  let objectMeta = await getObjectMeta(scopedToken, bucket, key);
-  console.log(objectMeta);
-
+async function conventionalCopyObject(bucket, key, size) {
   // If the object is smaller than 200 MiB, copy it as a single object
-  if (objectMeta.size < 200 * 1024 * 1024) {
+  if (size < 200 * 1024 * 1024) {
     console.log(`Copying ${key} as one chunk.`);
     let object = await getObject(scopedToken, bucket, key);
 
@@ -367,7 +435,7 @@ async function conventionalCopyObject(bucket, key) {
   let multipartParts = [];
   let partNumber = 0;
 
-  for (let i = 0; i < objectMeta.size; i = i + 100 * 1024 * 1024) {
+  for (let i = 0; i < size; i = i + 100 * 1024 * 1024) {
     // Get the next 100 MiB of the object (using inclusive range)
     console.log(`Getting the next part of object ${key}`);
     let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
@@ -419,12 +487,14 @@ async function migrateBucketObjects(bucket) {
     // Skip potentially done objects to continue from saved migration state
     if (object.contentDone) {
       bucket.value.totalObjectsDone++;
+      totalSizeDone.value += object.bytes;
       continue;
     }
 
     // Skip objects that are just SD Connect v1 segments
     if (object.key.match(".segments")) {
       bucket.value.totalObjectsDone++;
+      totalSizeDone.value += object.bytes;
       continue;
     }
 
@@ -464,7 +534,13 @@ async function migrateBucketObjects(bucket) {
     if (manifest) copyNeeded = true;
 
     // Skip copying the object if it need not be copied
-    if (!copyNeeded) continue;
+    if (!copyNeeded) {
+      object.contentDone = true;
+      // size available when copying not needed
+      totalSizeDone.value += object.bytes;
+      bucket.value.totalObjectsDone++;
+      continue;
+    }
 
     // Display the currently migrated file
     bucket.value.currentlyMigratingFile = object.key;
@@ -476,18 +552,24 @@ async function migrateBucketObjects(bucket) {
         Bucket: bucket.value.name,
         Key: object.key,
       });
+      // if size unavailable, save for progress tracking
+      let objectSize;
       try {
-        await client.send(objectAccessCommand);
+        const resp = await client.send(objectAccessCommand);
         console.log("Copying object using multipart.");
         await multipartCopyObject(bucket.value.name, object.key, manifest);
+        objectSize = resp.ContentLength ?? 0;
       } catch (e) {
         console.log(e);
         // If the object is inaccessible using S3 API, copy converntionally
         console.log("Copying the object conventionally");
-        await conventionalCopyObject(bucket.value.name, object.key);
+        const objectMeta = await getObjectMeta(scopedToken, bucket.value.name, object.key);
+        await conventionalCopyObject(bucket.value.name, object.key, objectMeta.size);
+        objectSize = objectMeta.size ?? 0;
       }
-
+      if (object.bytes === 0) object.bytes = objectSize;
       object.contentDone = true;
+      totalSizeDone.value += object.bytes;
     } catch (e) {
       console.log(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
@@ -626,21 +708,27 @@ async function beginMigration() {
 
   // Iterate over all buckets flagged for migration
   for (const bucket of migrateBuckets.value) {
-    // Retrieve the list of bucket objects
-    let objects = await getObjects(scopedToken, bucket.value.name);
-    // Format the object listing according to our requirements
-    bucket.value.objects = objects.map((object) => {
-      return {
-        key: object.name,
-        headerDone: false,
-        contentDone: false,
-        isSegmented: object.bytes == 0 ? true : false,
-        manifestBackup: "",
-      };
-    });
-
+    currentStage.value = stages.starting;
     // Flag the bucket as actively migrated
     bucket.value.currentlyMigrating = true;
+
+    // Retrieve the list of bucket objects
+    try {
+      let objects = await getObjects(scopedToken, bucket.value.name);
+      // Format the object listing according to our requirements
+      bucket.value.objects = objects.map((object) => {
+        return {
+          key: object.name,
+          bytes: object.bytes ?? 0,
+          headerDone: false,
+          contentDone: false,
+          isSegmented: object.bytes == 0 ? true : false,
+          manifestBackup: "",
+        };
+      });
+    } catch {
+      continue;
+    }
 
     // Ensure that the bucket exists
     try {
@@ -651,6 +739,20 @@ async function beginMigration() {
       return;
     }
 
+    currentStage.value = stages.sharing;
+
+    // Migrate bucket sharing
+    try {
+      await migrateBucketSharing(bucket);
+      bucket.value.sharingMigrated = true;
+    } catch (e) {
+      console.log("Bucket sharing migration failed. Reason/traceback:");
+      console.log(e);
+      return;
+    }
+
+    currentStage.value = stages.headers;
+
     // Migrate bucket headers
     try {
       await migrateBucketHeaders(bucket);
@@ -660,6 +762,8 @@ async function beginMigration() {
       return;
     }
 
+    currentStage.value = stages.objects;
+
     // Migrate bucket contents
     try {
       await migrateBucketObjects(bucket);
@@ -668,15 +772,7 @@ async function beginMigration() {
       console.log(e);
       return;
     }
-
-    // Migrate bucket sharing
-    try {
-      await migrateBucketSharing(bucket);
-    } catch (e) {
-      console.log("Bucket sharing migration failed. Reason/traceback:");
-      console.log(e);
-      return;
-    }
+    bucket.value.currentlyMigrating = false;
   }
 
   // Emit the migrate process state after finalize
@@ -686,3 +782,8 @@ async function beginMigration() {
   );
 }
 </script>
+<style scoped>
+.alert-text {
+  flex: 1;
+}
+</style>

@@ -31,3 +31,9 @@ body {
 h1 {
   color: var(--c-primary-600);
 }
+
+c-data-table {
+  margin-top: 1rem;
+  --c-data-table-highlighted-column-background-color: var(--c-white);
+  --c-icon-color: var(--c-primary-600);
+}
