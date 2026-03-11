@@ -2,7 +2,7 @@
   <div>
     <p>
       <b>Project:</b>
-      {{ activeProject?.name }} {{ activeProject?.description }}
+      {{ project?.name }} {{ project?.description }}
     </p>
     <h1>Conversion in process</h1>
     <p>
@@ -28,7 +28,7 @@
         {{ getReadableTime(estimatedTime) }}
       </p>
     </div>
-    <c-data-table hide-footer :headers="headers" :data="tableData"></c-data-table>
+    <MigrationBucketTable :buckets="migrateBuckets" :migration-stage="currentStage" />
   </div>
 </template>
 
@@ -54,7 +54,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { SD_CONNECT_API_URL } from "../scripts/config";
-import { estimatedBytesPerSec, getBucketStatus, getReadableTime, timeout } from "../scripts/common";
+import { estimatedBytesPerSec, getReadableTime, migrationStages, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
@@ -64,27 +64,17 @@ import {
   getObjectMeta,
   getObjects,
 } from "../scripts/openstack";
-import { mdiOpenInNew, mdiPail } from "@mdi/js";
+import { mdiOpenInNew } from "@mdi/js";
+import MigrationBucketTable from "./MigrationBucketTable.vue";
 
-const { buckets, scopedToken, activeProject, s3address } = defineProps([
-  "buckets",
-  "scopedToken",
-  "activeProject",
-  "s3address",
-]);
+const { buckets, scopedToken, project, s3address } = defineProps(["buckets", "scopedToken", "project", "s3address"]);
 
 const emit = defineEmits(["bucketsMigrated"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
 const bucketSuffix = "-conv";
-const stages = {
-  starting: "starting",
-  sharing: "sharing",
-  headers: "headers",
-  objects: "objects",
-};
-const currentStage = ref(stages.starting);
+const currentStage = ref(migrationStages.starting);
 
 /*
 Migration process object definition
@@ -125,21 +115,19 @@ onMounted(() => {
   for (const bucket of buckets) {
     totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
 
-    migrateBuckets.value.push(
-      ref({
-        name: bucket.name,
-        totalObjects: bucket.count,
-        totalObjectsDone: 0,
-        totalHeaders: bucket.count,
-        totalHeadersDone: 0,
-        currentlyMigrating: false,
-        currentlyMigratingFile: "",
-        sharingMigrated: false,
-        headersMigrated: false,
-        conversionNeed: bucket.conversionNeed,
-        objects: [],
-      }),
-    );
+    migrateBuckets.value.push({
+      name: bucket.name,
+      totalObjects: bucket.count,
+      totalObjectsDone: 0,
+      totalHeaders: bucket.count,
+      totalHeadersDone: 0,
+      currentlyMigrating: false,
+      currentlyMigratingFile: "",
+      sharingMigrated: false,
+      headersMigrated: false,
+      conversionNeed: bucket.conversionNeed,
+      objects: [],
+    });
   }
   console.log(totalSize.value);
   console.log(migrateBuckets.value);
@@ -152,106 +140,6 @@ const estimatedTime = computed(() => {
   // or the fact that some objects may not need copying
   const remaining = totalSize.value - totalSizeDone.value;
   return Math.ceil(remaining / estimatedBytesPerSec);
-});
-
-/* TABLE */
-
-const headers = [
-  { key: "name", align: "center", value: "Name", sortable: false },
-  { key: "status", value: "Conversion need", sortable: false },
-  { key: "progress", align: "center", value: "", sortable: false },
-];
-
-const staticTableData = computed(() => {
-  return migrateBuckets.value.map((bucket) => {
-    const status = getBucketStatus(bucket.value.conversionNeed);
-    return {
-      name: {
-        value: null,
-        children: [
-          {
-            value: null,
-            component: {
-              tag: "c-icon",
-              params: {
-                path: mdiPail,
-                style: {
-                  marginRight: "0.5rem",
-                },
-              },
-            },
-          },
-          {
-            value: bucket.value.name,
-            component: {
-              tag: "span",
-            },
-          },
-        ],
-      },
-      status: status
-        ? {
-            value: status.value,
-            component: {
-              tag: "c-status",
-              params: {
-                type: status.type,
-              },
-            },
-          }
-        : { value: null },
-    };
-  });
-});
-
-/**
- * Display progress string dependent on migration stage
- * @param {Object} bucket - object describing the bucket
- */
-function getProgressString(bucket) {
-  if (bucket.value.currentlyMigrating === true) {
-    switch (currentStage.value) {
-      case stages.starting:
-        return "Preparing for conversion...";
-      case stages.sharing:
-        return "Converting sharing...";
-      case stages.headers:
-        return "Preparing items for conversion...";
-      case stages.objects:
-        return `${bucket.value.totalObjectsDone}/${bucket.value.totalObjects} items converted`;
-    }
-  } else if (
-    bucket.value.sharingMigrated &&
-    bucket.value.headersMigrated &&
-    bucket.value.totalObjects === bucket.value.totalObjectsDone
-  ) {
-    // For converted buckets, display the object stage string
-    return `${bucket.value.totalObjectsDone}/${bucket.value.totalObjects} items converted`;
-  } else {
-    return "";
-  }
-}
-
-const tableData = computed(() => {
-  // No need to recompute all data on every object done
-  return staticTableData.value.map((row, i) => {
-    const bucket = migrateBuckets.value[i];
-    return {
-      ...row,
-      progress: {
-        value: getProgressString(bucket),
-        component: {
-          tag: "span",
-          params: {
-            style: {
-              // provide width to prevent row from visual glitch on update
-              minWidth: "35ch",
-            },
-          },
-        },
-      },
-    };
-  });
 });
 
 /* MIGRATION */
@@ -284,20 +172,20 @@ function convertBucketName(bucket) {
 /**
  * Migrate bucket object headers under the s3 compatible bucket name
  * @param {Object} bucket - object describing the bucket to be migrated
- * @param {string} bucket.value.name - the name of the bucket to be migrated
- * @param {string} bucket.value.currentlyMigratingFile - reference to file currently being migrated
- * @param {Object[]} bucket.value.objects - array of the bucket objects
- * @param {string} bucket.value.objects[].key - name of the object in question
- * @param {boolean} bucket.value.objects[].headerDone - status of header migration for the object
+ * @param {string} bucket.name - the name of the bucket to be migrated
+ * @param {string} bucket.currentlyMigratingFile - reference to file currently being migrated
+ * @param {Object[]} bucket.objects - array of the bucket objects
+ * @param {string} bucket.objects[].key - name of the object in question
+ * @param {boolean} bucket.objects[].headerDone - status of header migration for the object
  */
 async function migrateBucketHeaders(bucket) {
   // Skip header copy if the bucket name doesn't change
-  if (bucket.name == convertBucketName(bucket.value.name)) {
-    for (const object of bucket.value.objects) {
-      bucket.value.totalHeadersDone++;
+  if (bucket.name == convertBucketName(bucket.name)) {
+    for (const object of bucket.objects) {
+      bucket.totalHeadersDone++;
       object.headerDone = true;
     }
-    bucket.value.headersMigrated = true;
+    bucket.headersMigrated = true;
     return;
   }
 
@@ -307,19 +195,19 @@ async function migrateBucketHeaders(bucket) {
   if (!SD_CONNECT_API_URL) {
     console.log("No API URL provided, simulating header migration.");
 
-    for (const object of bucket.value.objects) {
-      bucket.value.currentlyMigratingFile = object.key;
+    for (const object of bucket.objects) {
+      bucket.currentlyMigratingFile = object.key;
       await timeout(50);
-      bucket.value.totalHeadersDone++;
+      bucket.totalHeadersDone++;
       object.headerDone = true;
     }
-    bucket.value.headersMigrated = true;
+    bucket.headersMigrated = true;
 
     return;
   }
 
   // Migrate bucket headers for objects that require it
-  for (const object of bucket.value.objects) {
+  for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.headerDone) continue;
   }
@@ -393,7 +281,7 @@ async function multipartCopyObject(bucket, key, manifest) {
  *
  * @param {string} bucket - the name of the bucket the object is in
  * @param {string} key - the key of the object to be copied
- * @param {int} size - object size
+ * @param {number} size - object size
  */
 async function conventionalCopyObject(bucket, key, size) {
   // If the object is smaller than 200 MiB, copy it as a single object
@@ -475,25 +363,25 @@ async function conventionalCopyObject(bucket, key, size) {
 /**
  * Copy over the bucket objects for objects that require it
  * @param {Object} bucket - object describing the bucket to be migrated
- * @param {string} bucket.value.name - the name of the bucket to be migrated
- * @param {string} bucket.value.currentlyMigratingFile - reference to file currently being migrated
- * @param {Object[]} bucket.value.objects - array of the bucket objects
- * @param {string} bucket.value.objects[].key - name of the object in question
- * @param {boolean} bucket.value.objects[].contentDone - status of header migration for the object
+ * @param {string} bucket.name - the name of the bucket to be migrated
+ * @param {string} bucket.currentlyMigratingFile - reference to file currently being migrated
+ * @param {Object[]} bucket.objects - array of the bucket objects
+ * @param {string} bucket.objects[].key - name of the object in question
+ * @param {boolean} bucket.objects[].contentDone - status of header migration for the object
  */
 async function migrateBucketObjects(bucket) {
   // Migrate bucket objects for objects that require it
-  for (const object of bucket.value.objects) {
+  for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.contentDone) {
-      bucket.value.totalObjectsDone++;
+      bucket.totalObjectsDone++;
       totalSizeDone.value += object.bytes;
       continue;
     }
 
     // Skip objects that are just SD Connect v1 segments
     if (object.key.match(".segments")) {
-      bucket.value.totalObjectsDone++;
+      bucket.totalObjectsDone++;
       totalSizeDone.value += object.bytes;
       continue;
     }
@@ -528,9 +416,9 @@ async function migrateBucketObjects(bucket) {
 
     let copyNeeded = false;
     // If the bucket name changes we need to copy the object
-    if (bucket.value.name != convertBucketName(bucket.value.name)) copyNeeded = true;
+    if (bucket.name != convertBucketName(bucket.name)) copyNeeded = true;
     // If the object is segmented we need to copy the object
-    let manifest = await checkObjectManifest(scopedToken, bucket.value.name, object.key);
+    let manifest = await checkObjectManifest(scopedToken, bucket.name, object.key);
     if (manifest) copyNeeded = true;
 
     // Skip copying the object if it need not be copied
@@ -538,18 +426,18 @@ async function migrateBucketObjects(bucket) {
       object.contentDone = true;
       // size available when copying not needed
       totalSizeDone.value += object.bytes;
-      bucket.value.totalObjectsDone++;
+      bucket.totalObjectsDone++;
       continue;
     }
 
     // Display the currently migrated file
-    bucket.value.currentlyMigratingFile = object.key;
+    bucket.currentlyMigratingFile = object.key;
 
     // Start the migration
     try {
       // If the object can be accessed using S3 API, perform the copy using multipart
       const objectAccessCommand = new HeadObjectCommand({
-        Bucket: bucket.value.name,
+        Bucket: bucket.name,
         Key: object.key,
       });
       // if size unavailable, save for progress tracking
@@ -557,14 +445,14 @@ async function migrateBucketObjects(bucket) {
       try {
         const resp = await client.send(objectAccessCommand);
         console.log("Copying object using multipart.");
-        await multipartCopyObject(bucket.value.name, object.key, manifest);
+        await multipartCopyObject(bucket.name, object.key, manifest);
         objectSize = resp.ContentLength ?? 0;
       } catch (e) {
         console.log(e);
         // If the object is inaccessible using S3 API, copy converntionally
         console.log("Copying the object conventionally");
-        const objectMeta = await getObjectMeta(scopedToken, bucket.value.name, object.key);
-        await conventionalCopyObject(bucket.value.name, object.key, objectMeta.size);
+        const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
+        await conventionalCopyObject(bucket.name, object.key, objectMeta.size);
         objectSize = objectMeta.size ?? 0;
       }
       if (object.bytes === 0) object.bytes = objectSize;
@@ -576,14 +464,14 @@ async function migrateBucketObjects(bucket) {
       // TODO: revert to previous manifest
     }
 
-    bucket.value.totalObjectsDone++;
+    bucket.totalObjectsDone++;
   }
 }
 
 /**
  * Copy over the bucket sharing if that's required
  * @param {Object} bucket - the bucket that is to be migrated
- * @param {string} bucket.value.name - the name of the bucket that is to be migrated
+ * @param {string} bucket.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
   // Currently we assume there are no bucket policies present
@@ -593,7 +481,7 @@ async function migrateBucketSharing(bucket) {
     Statement: [],
   };
   // Retrieve the bucket ACLs
-  const ACLs = await getBucketACLs(scopedToken, bucket.value.name);
+  const ACLs = await getBucketACLs(scopedToken, bucket.name);
   // Add statements for all read rights
   if (ACLs?.read?.length > 0) {
     for (const project of ACLs.read) {
@@ -621,8 +509,8 @@ async function migrateBucketSharing(bucket) {
             : []),
         ],
         Resource: [
-          `arn:aws:s3:::${convertBucketName(bucket.value.name)}`,
-          `arn:aws:s3:::${convertBucketName(bucket.value.name)}/*`,
+          `arn:aws:s3:::${convertBucketName(bucket.name)}`,
+          `arn:aws:s3:::${convertBucketName(bucket.name)}/*`,
         ],
       };
 
@@ -632,21 +520,21 @@ async function migrateBucketSharing(bucket) {
   }
   try {
     const command = new PutBucketPolicyCommand({
-      Bucket: convertBucketName(bucket.value.name),
+      Bucket: convertBucketName(bucket.name),
       Policy: JSON.stringify(policy),
     });
     await client.send(command);
-    console.log(`Added bucket policy for ${convertBucketName(bucket.value.name)}`);
+    console.log(`Added bucket policy for ${convertBucketName(bucket.name)}`);
   } catch (e) {
     if (e instanceof S3ServiceException && e.name === "MalformedPolicy") {
       // Shamelessly recycle the error handling from AWS docs
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". The policy was malformed.`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". The policy was malformed.`,
       );
       return;
     } else if (e instanceof S3ServiceException) {
       console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.value.name)}". ${e.name}: ${e.message}`,
+        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". ${e.name}: ${e.message}`,
       );
     } else {
       throw e;
@@ -654,11 +542,11 @@ async function migrateBucketSharing(bucket) {
   }
 
   // Mark sharing as migrated
-  bucket.value.sharingMigrated = true;
+  bucket.sharingMigrated = true;
 
   // If the bucket name has changed, we need to migrate the Vault side sharing
   // info as well
-  if (bucket.value.name == convertBucketName(bucket.value.name)) return;
+  if (bucket.name == convertBucketName(bucket.name)) return;
   // If we don't have API access configured, skip the operation Vault share migrate
   if (!SD_CONNECT_API_URL) return;
   // TODO: implement Vault sharing
@@ -696,7 +584,7 @@ async function beginMigration() {
   console.log("Begun migration.");
 
   // Initialize the ec2 credentials and the client
-  ec2 = await getEC2Credentials(scopedToken, activeProject.id);
+  ec2 = await getEC2Credentials(scopedToken, project.id);
   client = new S3Client({
     region: "us-east-1",
     endpoint: s3address,
@@ -708,15 +596,15 @@ async function beginMigration() {
 
   // Iterate over all buckets flagged for migration
   for (const bucket of migrateBuckets.value) {
-    currentStage.value = stages.starting;
+    currentStage.value = migrationStages.starting;
     // Flag the bucket as actively migrated
-    bucket.value.currentlyMigrating = true;
+    bucket.currentlyMigrating = true;
 
     // Retrieve the list of bucket objects
     try {
-      let objects = await getObjects(scopedToken, bucket.value.name);
+      let objects = await getObjects(scopedToken, bucket.name);
       // Format the object listing according to our requirements
-      bucket.value.objects = objects.map((object) => {
+      bucket.objects = objects.map((object) => {
         return {
           key: object.name,
           bytes: object.bytes ?? 0,
@@ -732,26 +620,26 @@ async function beginMigration() {
 
     // Ensure that the bucket exists
     try {
-      await createNewBucket(bucket.value.name);
+      await createNewBucket(bucket.name);
     } catch (e) {
       console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
       console.log(e);
       return;
     }
 
-    currentStage.value = stages.sharing;
+    currentStage.value = migrationStages.sharing;
 
     // Migrate bucket sharing
     try {
       await migrateBucketSharing(bucket);
-      bucket.value.sharingMigrated = true;
+      bucket.sharingMigrated = true;
     } catch (e) {
       console.log("Bucket sharing migration failed. Reason/traceback:");
       console.log(e);
       return;
     }
 
-    currentStage.value = stages.headers;
+    currentStage.value = migrationStages.headers;
 
     // Migrate bucket headers
     try {
@@ -762,7 +650,7 @@ async function beginMigration() {
       return;
     }
 
-    currentStage.value = stages.objects;
+    currentStage.value = migrationStages.objects;
 
     // Migrate bucket contents
     try {
@@ -772,14 +660,11 @@ async function beginMigration() {
       console.log(e);
       return;
     }
-    bucket.value.currentlyMigrating = false;
+    bucket.currentlyMigrating = false;
   }
 
   // Emit the migrate process state after finalize
-  emit(
-    "bucketsMigrated",
-    migrateBuckets.value.map((bucket) => bucket.value),
-  );
+  emit("bucketsMigrated", migrateBuckets.value);
 }
 </script>
 <style scoped>
