@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Shamelessly done with Copilot due to laziness, with changes where relevant
+# Shamelessly done with Copilot due to laziness, altered where relevant
 
 # ========= Config =========
 APP_NAME="${APP_NAME:-sd-connect-migrate-project}"
@@ -75,24 +75,31 @@ fetch_node() {
 
 # ========= Fetch standalone Python via python-build-standalone =========
 fetch_python() {
-  echo "==> Fetching standalone Python $PYTHON_MAJMIN (python-build-standalone) ..."
-  # We scrape releases/latest HTML to find an asset that matches our arch + gnu + pgo+lto
-  local REL_URL="https://github.com/indygreg/python-build-standalone/releases/latest"
-  local HTML TMP
-  TMP="$(mktemp)"
-  curl -fsSL "$REL_URL" -o "$TMP"
+  echo "==> Fetching standalone Python $PYTHON_MAJMIN via GitHub API ..."
 
-  # Look for an asset like: cpython-3.11.*-x86_64-unknown-linux-gnu-pgo+lto-full.tar.zst
-  local PATTERN="cpython-${PYTHON_MAJMIN}[^\"]*-${PY_ARCH}-unknown-linux-gnu-pgo\\+lto-full\\.tar\\.zst"
-  local ASSET
-  ASSET="$(grep -oE "$PATTERN" "$TMP" | head -n1 || true)"
-  rm -f "$TMP"
-  [ -n "$ASSET" ] || { echo "Could not find python-build-standalone asset for $PYTHON_MAJMIN/$PY_ARCH" >&2; exit 1; }
+  API_URL="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
 
-  local DL="https://github.com/indygreg/python-build-standalone/releases/latest/download/$ASSET"
-  echo "Downloading: $ASSET"
-  curl -fsSL "$DL" -o python.tar.zst
-  # Requires tar with zstd support
+  # Fetch JSON metadata
+  RELEASE_JSON="$(curl -fsSL "$API_URL")"
+
+  # Construct regex for the asset filename
+  # Matches: cpython-3.12.13+20260310-x86_64-unknown-linux-gnu-pgo+lto-full.tar.zst
+  ASSET_REGEX="cpython-${PYTHON_MAJMIN}\.[0-9]+(\+[0-9]+)?-${PY_ARCH}-unknown-linux-gnu-pgo\\+lto-full\\.tar\\.zst"
+
+  # Extract asset download URL
+  ASSET_URL="$(echo "$RELEASE_JSON" \
+      | jq -r --arg re "$ASSET_REGEX" \
+          '.assets[] | select(.name | test($re)) | .browser_download_url' | head -n1)"
+
+  if [ -z "$ASSET_URL" ]; then
+      echo "ERROR: Could not find Python build matching: $ASSET_REGEX" >&2
+      exit 1
+  fi
+
+  echo "Downloading Python from:"
+  echo "  $ASSET_URL"
+
+  curl -fsSL "$ASSET_URL" -o python.tar.zst
   tar --zstd -xf python.tar.zst -C "$PY_DIR" --strip-components=1
   rm -f python.tar.zst
 
