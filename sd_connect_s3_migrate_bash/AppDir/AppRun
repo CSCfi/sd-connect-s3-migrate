@@ -18,6 +18,6 @@ export PYTHONNOUSERSITE=1
 # export HOME="${XDG_RUNTIME_DIR:-/tmp}"
 
 # Name of the command we ship (adjust if you change APP_NAME in build.sh)
-ENTRYPOINT="my-tool"
+ENTRYPOINT="sd-connect-migrate-project"
 
 exec "$APPDIR/usr/bin/$ENTRYPOINT" "$@"

@@ -1,1 +1,7 @@
+# Ignore any AppImage build remnants
+**.AppImage
+appimagetool
+.DirIcon
+
 AppDir/usr
+AppDir/icons
