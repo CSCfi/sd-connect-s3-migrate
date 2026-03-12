@@ -214,19 +214,46 @@ finalize_metadata() {
 
 # ========= Fetch appimagetool & build =========
 package_appimage() {
-  echo "==> Building AppImage ..."
-  # Get appimagetool (itself an AppImage)
-  if [ ! -x ./appimagetool ]; then
-    local AIT_URL
-    if [ "$ARCH" = "x86_64" ]; then
-      AIT_URL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-${ARCH}.AppImage"
-    else
-      # Arm build exists as well in recent releases
-      AIT_URL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-${ARCH}.AppImage"
-    fi
-    curl -fsSL "$AIT_URL" -o appimagetool
-    chmod +x appimagetool
+  echo "==> Fetching appimagetool (continuous) via GitHub API ..."
+
+  API_URL="https://api.github.com/repos/AppImage/appimagetool/releases/tags/continuous"
+
+  RELEASE_JSON="$(curl -fsSL "$API_URL")"
+
+  case "$ARCH" in
+    x86_64)   APPIMAGE_ARCH="x86_64" ;;
+    aarch64)  APPIMAGE_ARCH="aarch64" ;;
+    armhf)    APPIMAGE_ARCH="armhf" ;; # Just in case
+    *)
+      echo "Unsupported architecture for appimagetool: $ARCH" >&2
+      exit 1
+      ;;
+  esac
+
+  # Filename pattern e.g. appimagetool-x86_64.AppImage
+  FILE_RE="appimagetool-${APPIMAGE_ARCH}\\.AppImage"
+
+  ASSET_URL="$(
+    echo "$RELEASE_JSON" \
+      | jq -r --arg re "$FILE_RE" \
+        '.assets[] | select(.name | test($re)) | .browser_download_url' \
+      | head -n1
+  )"
+
+  if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+    echo "ERROR: Could not find appimagetool asset matching ${FILE_RE}" >&2
+    exit 1
   fi
+
+  echo "Downloading appimagetool from:"
+  echo "  $ASSET_URL"
+
+  curl -fsSL "$ASSET_URL" -o appimagetool
+  chmod +x appimagetool
+
+  echo "appimagetool fetched successfully."
+
+  echo "==> Building AppImage..."
 
   # AppImage naming convention: <name>-<arch>.AppImage
   local OUT="${OUT_NAME}-${ARCH}.AppImage"
