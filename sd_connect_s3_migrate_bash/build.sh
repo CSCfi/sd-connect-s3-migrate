@@ -123,7 +123,8 @@ install_python_deps() {
   # sd-lock-util from GitHub + python-openstackclient from PyPI
   "$PY_VENV/bin/pip" install --no-cache-dir \
       "git+https://github.com/CSCfi/sd-lock-util.git" \
-      "python-openstackclient"
+      "python-openstackclient" \
+      "gnureadline"
 }
 
 # ========= Install npm transliteration =========
