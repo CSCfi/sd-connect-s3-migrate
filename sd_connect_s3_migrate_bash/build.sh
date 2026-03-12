@@ -101,9 +101,16 @@ fetch_python() {
 
   curl -fsSL "$ASSET_URL" -o python.tar.zst
   tar --zstd -xf python.tar.zst -C "$PY_DIR" --strip-components=1
-  rm -f python.tar.zst
+  rm python.tar.zst
 
-  echo "Python: $("$PY_DIR/bin/python3" -V)"
+  mkdir -p "$PY_DIR/bin"
+  ln -fs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python3"
+  ln -fs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python"
+  ln -fs "$PY_DIR/install/bin/pip3" "$PY_DIR/bin/pip3"
+  ln -fs "$PY_DIR/install/bin/pip" "$PY_DIR/bin/pip"
+
+  echo "Python installed:"
+  "$PY_DIR/bin/python3" -V
 }
 
 # ========= Create venv and install Python deps =========
