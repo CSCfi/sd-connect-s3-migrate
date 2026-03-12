@@ -134,9 +134,19 @@ install_npm_deps() {
   "$NODE_DIR/bin/npm" install --no-audit --no-fund --loglevel=error \
       --prefix "$NODEPKGS_DIR" transliteration@latest
   # Sanity check
-  if [ ! -x "$NODEPKGS_DIR/node_modules/.bin/transliteration" ] && \
+  if [ ! -x "$NODEPKGS_DIR/node_modules/.bin/slugify" ] && \
      [ ! -x "$NODEPKGS_DIR/node_modules/.bin/transliterate" ]; then
     echo "Warning: could not find transliteration CLI in node_modules/.bin (will still set PATH)" >&2
+  fi
+
+  # Clean up the node-breaking duplicate shebang by yanking first line
+  if [[ $(grep "#!/usr/bin/env node" < $NODEPKGS_DIR/node_modules/.bin/slugify | wc -l) -gt 1 ]]; then
+    echo "==> Yanking first line in slugify to prevent crashing node with bash shebang..."
+    sed -i 1d "$NODEPKGS_DIR/node_modules/.bin/slugify"
+  fi
+  if [[ $(grep "#!/usr/bin/env node" < $NODEPKGS_DIR/node_modules/.bin/transliterate | wc -l) -gt 1 ]]; then
+    echo "==> Yanking first line in transliterate to prevent crashing node with bash shebang..."
+    sed -i 1d "$NODEPKGS_DIR/node_modules/.bin/transliterate"
   fi
 }
 
