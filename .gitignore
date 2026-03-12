@@ -128,3 +128,6 @@ static
 
 Procfile.*
 *.pem
+
+# Any possible rclone config created by the script
+.rclone-*

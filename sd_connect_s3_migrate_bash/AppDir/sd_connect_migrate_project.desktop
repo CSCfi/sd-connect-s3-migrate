@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=sd-connect-migrate-project
+Exec=sd-connect-migrate-project %F
+Terminal=true
+Icon=sd-connect-migrate-project
+Categories=Utility;

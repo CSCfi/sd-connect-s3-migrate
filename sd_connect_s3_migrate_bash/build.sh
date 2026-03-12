@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Shamelessly done with Copilot due to laziness, with changes where relevant
+
+# ========= Config =========
+APP_NAME="${APP_NAME:-sd-connect-migrate-project}"
+SRC_SCRIPT="${SRC_SCRIPT:-migrate_project_bash_src/migrate_project.sh}"
+OUT_NAME="${OUT_NAME:-${APP_NAME}}"
+
+# Python major.minor to target
+PYTHON_MAJMIN="${PYTHON_MAJMIN:-3.12}"
+
+# Note: not 100 % sure how necessary the ARM support is, leaving it in place for now.
+# ========= Detect architecture =========
+UNAME_M="$(uname -m)"
+case "$UNAME_M" in
+  x86_64|amd64)
+    ARCH="x86_64"
+    NODE_ARCH="x64"
+    JQ_ASSET="jq-linux-amd64"
+    RCLONE_ARCH="amd64"
+    PY_ARCH="x86_64"
+    ;;
+  aarch64|arm64)
+    ARCH="aarch64"
+    NODE_ARCH="arm64"
+    JQ_ASSET="jq-linux-arm64"
+    RCLONE_ARCH="arm64"
+    PY_ARCH="aarch64"
+    ;;
+  *)
+    echo "Unsupported architecture: $UNAME_M" >&2
+    exit 1
+    ;;
+esac
+
+# ========= Paths =========
+ROOT="$(pwd)"
+APPDIR="$ROOT/AppDir"
+USR="$APPDIR/usr"
+BIN="$USR/bin"
+NODE_DIR="$USR/node"
+NODEPKGS_DIR="$USR/nodepkgs"
+PY_DIR="$USR/python"
+PY_VENV="$USR/pyvenv"
+
+mkdir -p "$BIN" "$NODE_DIR" "$NODEPKGS_DIR" "$PY_DIR" "$PY_VENV" \
+         "$APPDIR/icons/hicolor/128x128/apps"
+
+# ========= Helper: require curl, tar, unzip =========
+need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1" >&2; exit 1; }; }
+need curl
+need tar
+# unzip is needed for rclone .zip (some distros package rclone as .zip)
+if ! command -v unzip >/dev/null 2>&1; then
+  echo "Note: 'unzip' not found; attempting to use 'bsdtar' if available."
+  command -v bsdtar >/dev/null 2>&1 || { echo "Install unzip or bsdtar" >&2; exit 1; }
+  UNZIP="bsdtar -xf"
+else
+  UNZIP="unzip -q"
+fi
+
+# ========= Fetch Node.js 22.x =========
+fetch_node() {
+  echo "==> Fetching Node.js 22.x for $NODE_ARCH ..."
+  local BASE="https://nodejs.org/dist/latest-v22.x"
+  # Find the exact tarball name via SHASUMS list (portable, no need to hardcode version)
+  local FILENAME
+  FILENAME="$(curl -fsSL "$BASE/SHASUMS256.txt" | awk "/linux-${NODE_ARCH}\\.tar\\.xz/ {print \$2}" | sed 's/\*//')"
+  [ -n "$FILENAME" ] || { echo "Could not resolve Node 22 tarball" >&2; exit 1; }
+  curl -fsSL "$BASE/$FILENAME" | tar -xJ --strip-components=1 -C "$NODE_DIR"
+  echo "Node: $("$NODE_DIR/bin/node" -v), npm: $("$NODE_DIR/bin/npm" -v)"
+}
+
+# ========= Fetch standalone Python via python-build-standalone =========
+fetch_python() {
+  echo "==> Fetching standalone Python $PYTHON_MAJMIN (python-build-standalone) ..."
+  # We scrape releases/latest HTML to find an asset that matches our arch + gnu + pgo+lto
+  local REL_URL="https://github.com/indygreg/python-build-standalone/releases/latest"
+  local HTML TMP
+  TMP="$(mktemp)"
+  curl -fsSL "$REL_URL" -o "$TMP"
+
+  # Look for an asset like: cpython-3.11.*-x86_64-unknown-linux-gnu-pgo+lto-full.tar.zst
+  local PATTERN="cpython-${PYTHON_MAJMIN}[^\"]*-${PY_ARCH}-unknown-linux-gnu-pgo\\+lto-full\\.tar\\.zst"
+  local ASSET
+  ASSET="$(grep -oE "$PATTERN" "$TMP" | head -n1 || true)"
+  rm -f "$TMP"
+  [ -n "$ASSET" ] || { echo "Could not find python-build-standalone asset for $PYTHON_MAJMIN/$PY_ARCH" >&2; exit 1; }
+
+  local DL="https://github.com/indygreg/python-build-standalone/releases/latest/download/$ASSET"
+  echo "Downloading: $ASSET"
+  curl -fsSL "$DL" -o python.tar.zst
+  # Requires tar with zstd support
+  tar --zstd -xf python.tar.zst -C "$PY_DIR" --strip-components=1
+  rm -f python.tar.zst
+
+  echo "Python: $("$PY_DIR/bin/python3" -V)"
+}
+
+# ========= Create venv and install Python deps =========
+install_python_deps() {
+  echo "==> Creating venv & installing Python dependencies ..."
+  "$PY_DIR/bin/python3" -m venv "$PY_VENV"
+  # upgrade pip/setuptools/wheel inside venv
+  "$PY_VENV/bin/pip" install --no-cache-dir --upgrade pip setuptools wheel
+
+  # sd-lock-util from GitHub + python-openstackclient from PyPI
+  "$PY_VENV/bin/pip" install --no-cache-dir \
+      "git+https://github.com/CSCfi/sd-lock-util.git" \
+      "python-openstackclient"
+}
+
+# ========= Install npm transliteration =========
+install_npm_deps() {
+  echo "==> Installing npm 'transliteration' ..."
+  # Install into a dedicated prefix; binaries will appear in node_modules/.bin
+  "$NODE_DIR/bin/npm" install --no-audit --no-fund --loglevel=error \
+      --prefix "$NODEPKGS_DIR" transliteration@latest
+  # Sanity check
+  if [ ! -x "$NODEPKGS_DIR/node_modules/.bin/transliteration" ] && \
+     [ ! -x "$NODEPKGS_DIR/node_modules/.bin/transliterate" ]; then
+    echo "Warning: could not find transliteration CLI in node_modules/.bin (will still set PATH)" >&2
+  fi
+}
+
+# ========= Fetch jq (static) =========
+fetch_jq() {
+  echo "==> Fetching jq ..."
+  local URL="https://github.com/jqlang/jq/releases/latest/download/${JQ_ASSET}"
+  curl -fsSL "$URL" -o "$BIN/jq"
+  chmod +x "$BIN/jq"
+  echo "jq: $("$BIN/jq" --version)"
+}
+
+# ========= Fetch rclone =========
+fetch_rclone() {
+  echo "==> Fetching rclone ..."
+  local URL="https://downloads.rclone.org/rclone-current-linux-${RCLONE_ARCH}.zip"
+  rm -rf .rclone-tmp && mkdir -p .rclone-tmp
+  curl -fsSL "$URL" -o .rclone-tmp/rclone.zip
+  (cd .rclone-tmp && $UNZIP rclone.zip >/dev/null)
+  # the zip contains a directory like rclone-*-linux-amd64/rclone
+  local RCLONE_BIN
+  RCLONE_BIN="$(find .rclone-tmp -type f -name rclone -perm -u+x | head -n1)"
+  [ -n "$RCLONE_BIN" ] || { echo "Could not locate rclone binary in archive" >&2; exit 1; }
+  cp "$RCLONE_BIN" "$BIN/rclone"
+  chmod +x "$BIN/rclone"
+  rm -rf .rclone-tmp
+  echo "rclone: $("$BIN/rclone" version | head -n1)"
+}
+
+# ========= Copy your script as the entrypoint =========
+install_entry_script() {
+  echo "==> Installing entry script as $APP_NAME ..."
+  [ -f "$SRC_SCRIPT" ] || { echo "Missing source script: $SRC_SCRIPT" >&2; exit 1; }
+  install -m 0755 "$SRC_SCRIPT" "$BIN/$APP_NAME"
+}
+
+# ========= Optional icon placeholder =========
+ensure_icon() {
+  if [ ! -f "$APPDIR/icons/hicolor/128x128/apps/${APP_NAME}.png" ]; then
+    # Create a minimal 128x128 placeholder icon using ASCII (requires no external tools)
+    # This produces a tiny valid PNG (base64-encoded) — purely optional.
+    cat > "$APPDIR/icons/hicolor/128x128/apps/${APP_NAME}.png" <<'EOF'
+\x89PNG\r\n\x1a
+EOF
+    : # TODO: replace with a real PNG later
+  fi
+  # Update .desktop Icon= value expects a basename (no extension)
+  sed -i "s|^Icon=.*|Icon=${APP_NAME}|g" "$APPDIR/${APP_NAME}.desktop" 2>/dev/null || true
+}
+
+# ========= Make desktop file and AppRun consistent =========
+finalize_metadata() {
+  # Rename desktop file to match APP_NAME if needed
+  if [ "$(basename "$APPDIR"/*.desktop)" != "${APP_NAME}.desktop" ]; then
+    mv "$APPDIR/"*.desktop "$APPDIR/${APP_NAME}.desktop"
+  fi
+  # Update Exec and Name fields
+  sed -i "s|^Exec=.*|Exec=${APP_NAME} %F|g" "$APPDIR/${APP_NAME}.desktop"
+  sed -i "s|^Name=.*|Name=${APP_NAME}|g" "$APPDIR/${APP_NAME}.desktop"
+
+  # Ensure AppRun points to correct entrypoint name
+  sed -i "s|^ENTRYPOINT=.*|ENTRYPOINT=\"${APP_NAME}\"|g" "$APPDIR/AppRun"
+  chmod +x "$APPDIR/AppRun"
+}
+
+# ========= Fetch appimagetool & build =========
+package_appimage() {
+  echo "==> Building AppImage ..."
+  # Get appimagetool (itself an AppImage)
+  if [ ! -x ./appimagetool ]; then
+    local AIT_URL
+    if [ "$ARCH" = "x86_64" ]; then
+      AIT_URL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-${ARCH}.AppImage"
+    else
+      # Arm build exists as well in recent releases
+      AIT_URL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-${ARCH}.AppImage"
+    fi
+    curl -fsSL "$AIT_URL" -o appimagetool
+    chmod +x appimagetool
+  fi
+
+  # AppImage naming convention: <name>-<arch>.AppImage
+  local OUT="${OUT_NAME}-${ARCH}.AppImage"
+
+  # Some environments lack FUSE; use extract-and-run
+  export APPIMAGE_EXTRACT_AND_RUN=1
+  ./appimagetool "$APPDIR" "$OUT"
+
+  echo "==> AppImage created: $OUT"
+  echo "Run it via: ./${OUT} --help"
+}
+
+main() {
+  fetch_node
+  fetch_python
+  install_python_deps
+  install_npm_deps
+  fetch_jq
+  fetch_rclone
+  install_entry_script
+  ensure_icon
+  finalize_metadata
+  package_appimage
+}
+
+main "$@"

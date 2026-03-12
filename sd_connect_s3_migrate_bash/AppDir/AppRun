@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve AppDir
+HERE="$(dirname "$(readlink -f "$0")")"
+export APPDIR="$HERE"
+
+# Wire PATH so everything resolves inside the AppImage
+export PATH="$APPDIR/usr/bin:$APPDIR/usr/node/bin:$APPDIR/usr/nodepkgs/node_modules/.bin:$APPDIR/usr/pyvenv/bin:$PATH"
+
+# Make sure Python picks its venv first
+export VIRTUAL_ENV="$APPDIR/usr/pyvenv"
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PYTHONNOUSERSITE=1
+
+# If your script expects HOME or temp to be writable, keep them
+# Otherwise, you can rebase them inside a temp dir like:
+# export HOME="${XDG_RUNTIME_DIR:-/tmp}"
+
+# Name of the command we ship (adjust if you change APP_NAME in build.sh)
+ENTRYPOINT="my-tool"
+
+exec "$APPDIR/usr/bin/$ENTRYPOINT" "$@"
