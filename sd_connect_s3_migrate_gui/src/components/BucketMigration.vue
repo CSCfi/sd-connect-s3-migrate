@@ -69,7 +69,7 @@ import MigrationBucketTable from "./MigrationBucketTable.vue";
 
 const { buckets, scopedToken, project, s3address } = defineProps(["buckets", "scopedToken", "project", "s3address"]);
 
-const emit = defineEmits(["bucketsMigrated"]);
+const emit = defineEmits(["buckets-migrated"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -664,7 +664,7 @@ async function beginMigration() {
   }
 
   // Emit the migrate process state after finalize
-  emit("bucketsMigrated", migrateBuckets.value);
+  emit("buckets-migrated", migrateBuckets.value);
 }
 </script>
 <style scoped>

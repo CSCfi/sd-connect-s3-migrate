@@ -32,9 +32,11 @@ import { mdiOpenInNew } from "@mdi/js";
 
 const { project } = defineProps(["project"]);
 
-const emit = defineEmits(["gotToken", "goBack"]);
+const emit = defineEmits(["got-token", "go-back"]);
 
-const apiToken = ref();
+defineExpose({ reset });
+
+const apiToken = ref("");
 const showError = ref(false);
 
 function emitToken() {
@@ -42,12 +44,16 @@ function emitToken() {
     showError.value = true;
     return;
   }
-  emit("gotToken", apiToken.value);
+  emit("got-token", apiToken.value);
 }
 
 function goBack() {
   showError.value = false;
-  emit("goBack");
+  emit("go-back");
+}
+
+function reset() {
+  apiToken.value = "";
 }
 </script>
 

@@ -20,12 +20,15 @@
 
 <script setup>
 import { ref } from "vue";
-const selectedProject = ref();
+const selectedProject = ref(null);
 const showError = ref(false);
 
 const { projects } = defineProps(["projects"]);
 
-const emit = defineEmits(["selectProject"]);
+const emit = defineEmits(["select-project"]);
+
+// expose method to parent
+defineExpose({ reset });
 
 function selectProject() {
   if (!selectedProject.value?.value) {
@@ -33,7 +36,11 @@ function selectProject() {
     return;
   }
   // Selected project is wrapped { value: project }
-  emit("selectProject", selectedProject.value.value);
+  emit("select-project", selectedProject.value.value);
+}
+
+function reset() {
+  selectedProject.value = null;
 }
 </script>
 <style scoped>

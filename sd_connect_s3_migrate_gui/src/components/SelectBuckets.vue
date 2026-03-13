@@ -23,6 +23,7 @@
       :data="tableData"
       @selection="handleSelect"
       selection-property="bucket"
+      :key="tableKey"
     ></c-data-table>
     <div class="alert-wrapper">
       <c-alert v-if="selected.length" type="warning">
@@ -58,25 +59,42 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, watch, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
 import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getReadableTime } from "../scripts/common";
 import { getBuckets } from "../scripts/openstack";
 
 const { project, scopedToken } = defineProps(["project", "scopedToken"]);
 
-const emit = defineEmits(["selectBuckets", "goBack"]);
+const emit = defineEmits(["select-buckets", "go-back"]);
+
+watch(
+  () => scopedToken,
+  (newToken) => {
+    if (newToken) {
+      console.log(`Using scoped token: ${newToken}`);
+      getBuckets(newToken).then((ret) => {
+        buckets.value = ret;
+        if (selected.value.length) {
+          selected.value = [];
+          // Remount table so that select event detail doesn't contain stale selection
+          tableKey.value++;
+        }
+      });
+    }
+  },
+);
 
 function selectBuckets() {
   if (!selected.value.length) {
     addToast("error", "Please select buckets to convert");
     return;
   }
-  emit("selectBuckets", selected.value);
+  emit("select-buckets", selected.value);
 }
 
 function emitBack() {
-  emit("goBack");
+  emit("go-back");
 }
 
 function addToast(type, msg) {
@@ -88,20 +106,14 @@ function addToast(type, msg) {
 }
 
 /** TABLE */
-let buckets = ref([]);
-let selected = ref([]);
+const buckets = ref([]);
+const selected = ref([]);
+const tableKey = ref(0);
 
 const headers = [
   { key: "name", align: "center", value: "Name", sortable: false },
   { key: "status", value: "Conversion need", sortable: false },
 ];
-
-onMounted(() => {
-  console.log(`Using scoped token: ${scopedToken}`);
-  getBuckets(scopedToken).then((ret) => {
-    buckets.value = ret;
-  });
-});
 
 const tableData = computed(() => {
   return buckets.value
