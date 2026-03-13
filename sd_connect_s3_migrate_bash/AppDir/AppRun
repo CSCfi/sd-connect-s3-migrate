@@ -6,10 +6,9 @@ HERE="$(dirname "$(readlink -f "$0")")"
 export APPDIR="$HERE"
 
 # Wire PATH so everything resolves inside the AppImage
-export PATH="$APPDIR/usr/bin:$APPDIR/usr/node/bin:$APPDIR/usr/nodepkgs/node_modules/.bin:$APPDIR/usr/pyvenv/bin:$PATH"
+export PATH="$APPDIR/usr/python/bin:$APPDIR/usr/python/install/bin:$APPDIR/usr/bin:$APPDIR/usr/node/bin:$APPDIR/usr/nodepkgs/node_modules/.bin:$PATH"
 
 # Make sure Python picks its venv first
-export VIRTUAL_ENV="$APPDIR/usr/pyvenv"
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 export PYTHONNOUSERSITE=1
 

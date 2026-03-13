@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-
 # Gather the variables from the environment
 : ${OS_USERNAME:=""}
 : ${OS_USER_DOMAIN_NAME:=""}

@@ -43,9 +43,8 @@ BIN="$USR/bin"
 NODE_DIR="$USR/node"
 NODEPKGS_DIR="$USR/nodepkgs"
 PY_DIR="$USR/python"
-PY_VENV="$USR/pyvenv"
 
-mkdir -p "$BIN" "$NODE_DIR" "$NODEPKGS_DIR" "$PY_DIR" "$PY_VENV" \
+mkdir -p "$BIN" "$NODE_DIR" "$NODEPKGS_DIR" "$PY_DIR" \
          "$APPDIR/icons/hicolor/128x128/apps"
 
 # ========= Helper: require curl, tar, unzip =========
@@ -104,10 +103,10 @@ fetch_python() {
   rm python.tar.zst
 
   mkdir -p "$PY_DIR/bin"
-  ln -fs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python3"
-  ln -fs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python"
-  ln -fs "$PY_DIR/install/bin/pip3" "$PY_DIR/bin/pip3"
-  ln -fs "$PY_DIR/install/bin/pip" "$PY_DIR/bin/pip"
+  ln -frs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python3"
+  ln -frs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python"
+  ln -frs "$PY_DIR/install/bin/pip3" "$PY_DIR/bin/pip3"
+  ln -frs "$PY_DIR/install/bin/pip" "$PY_DIR/bin/pip"
 
   echo "Python installed:"
   "$PY_DIR/bin/python3" -V
@@ -115,16 +114,19 @@ fetch_python() {
 
 # ========= Create venv and install Python deps =========
 install_python_deps() {
-  echo "==> Creating venv & installing Python dependencies ..."
-  "$PY_DIR/bin/python3" -m venv "$PY_VENV"
-  # upgrade pip/setuptools/wheel inside venv
-  "$PY_VENV/bin/pip" install --no-cache-dir --upgrade pip setuptools wheel
+  echo "==> Installing Python dependencies ..."
+  # upgrade pip/setuptools/wheel inside site packages
+  "$PY_DIR/bin/pip" install --no-cache-dir --upgrade pip setuptools wheel
 
-  # sd-lock-util from GitHub + python-openstackclient from PyPI
-  "$PY_VENV/bin/pip" install --no-cache-dir \
+  # install dependencies
+  "$PY_DIR/bin/pip" install --no-cache-dir --upgrade \
       "git+https://github.com/CSCfi/sd-lock-util.git" \
       "python-openstackclient" \
       "gnureadline"
+
+  # Override incorrectly resolved pip shebangs in executables
+  sed -i "1s/.*/#!\/bin\/env python/" "$PY_DIR/install/bin/sd-lock-util"
+  sed -i "1s/.*/#!\/bin\/env python/" "$PY_DIR/install/bin/openstack"
 }
 
 # ========= Install npm transliteration =========
