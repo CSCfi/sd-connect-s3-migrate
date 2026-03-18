@@ -67,7 +67,7 @@ generateRclone() {
 	# Retrieve the endpoint from the service catalog
 	s3_endpoint=$(openstack catalog show object-store -f json | jq -r '.endpoints[] | select( .interface == "public").url' | sed "s/\/swift\/v1//g")
 
-	cat > $RCLONE_CONFIG <<EOF
+	cat > "$RCLONE_CONFIG" <<EOF
 [$OS_PROJECT_ID-swift]
 type = swift
 user = $OS_USERNAME
@@ -120,7 +120,7 @@ generateRclone
 if [[ $# -gt 0 ]]; then
 	echo "List of buckets provided, using it instead of whole project"
 	echo "Buckets to be migrated: $*"
-	MIGRATE_BUCKETS="$*"
+	MIGRATE_BUCKETS=("$@")
 else
 	echo "No list of buckets provided, retrieving buckets from openstack"
 	echo "Functionality to migrate non-urgent buckets will be added later"
@@ -141,10 +141,10 @@ for bucket in "${MIGRATE_BUCKETS[@]}"; do
 
 	# Migrate the bucket contents
 	echo "Migrating bucket contents..."
-	rclone --config $RCLONE_CONFIG copy --progress "$OS_PROJECT_ID-swift:$bucket" "$OS_PROJECT_ID:$convertedBucket"
+	rclone --config "$RCLONE_CONFIG" copy --progress "$OS_PROJECT_ID-swift:$bucket" "$OS_PROJECT_ID:$convertedBucket"
 	
 	# Migrate the bucket headers
-	if [[ -n SD_CONNECT_API_TOKEN && -n SD_CONNECT_API_ADDRESS ]]; then
+	if [[ -n "$SD_CONNECT_API_TOKEN" && -n "$SD_CONNECT_API_ADDRESS" ]]; then
 		echo "Migrating bucket headers..."
 		sd-lock-util migrate-headers --no-check-certificate "$bucket" "$convertedBucket"
 	else
