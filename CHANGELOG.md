@@ -20,6 +20,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Polish Data Conversion step accordingly to design (#28)
 - Updated conversion need statuses
 - Adjust Select buckets step accordingly to Figma design (#27)
 - Adjust token step to Figma design (#26)
