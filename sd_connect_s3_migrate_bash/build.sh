@@ -51,6 +51,7 @@ mkdir -p "$BIN" "$NODE_DIR" "$NODEPKGS_DIR" "$PY_DIR" \
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1" >&2; exit 1; }; }
 need curl
 need tar
+need jq
 # unzip is needed for rclone .zip (some distros package rclone as .zip)
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Note: 'unzip' not found; attempting to use 'bsdtar' if available."
@@ -69,7 +70,8 @@ fetch_node() {
   FILENAME="$(curl -fsSL "$BASE/SHASUMS256.txt" | awk "/linux-${NODE_ARCH}\\.tar\\.xz/ {print \$2}" | sed 's/\*//')"
   [ -n "$FILENAME" ] || { echo "Could not resolve Node 22 tarball" >&2; exit 1; }
   curl -fsSL "$BASE/$FILENAME" | tar -xJ --strip-components=1 -C "$NODE_DIR"
-  echo "Node: $("$NODE_DIR/bin/node" -v), npm: $("$NODE_DIR/bin/npm" -v)"
+
+  echo "Node: $($NODE_DIR/bin/node -v), npm: $(PATH="$NODE_DIR/bin:$PATH" $NODE_DIR/bin/npm -v)"
 }
 
 # ========= Fetch standalone Python via python-build-standalone =========
@@ -98,9 +100,7 @@ fetch_python() {
   echo "Downloading Python from:"
   echo "  $ASSET_URL"
 
-  curl -fsSL "$ASSET_URL" -o python.tar.zst
-  tar --zstd -xf python.tar.zst -C "$PY_DIR" --strip-components=1
-  rm python.tar.zst
+  curl -fsSL "$ASSET_URL" | zstd -d | tar -x -C "$PY_DIR" --strip-components=1
 
   mkdir -p "$PY_DIR/bin"
   ln -frs "$PY_DIR/install/bin/python3.12" "$PY_DIR/bin/python3"
@@ -133,7 +133,7 @@ install_python_deps() {
 install_npm_deps() {
   echo "==> Installing npm 'transliteration' ..."
   # Install into a dedicated prefix; binaries will appear in node_modules/.bin
-  "$NODE_DIR/bin/npm" install --no-audit --no-fund --loglevel=error \
+  PATH="$NODE_DIR/bin:$PATH" "$NODE_DIR/bin/npm" install --no-audit --no-fund --loglevel=error \
       --prefix "$NODEPKGS_DIR" transliteration@latest
   # Sanity check
   if [ ! -x "$NODEPKGS_DIR/node_modules/.bin/slugify" ] && \
