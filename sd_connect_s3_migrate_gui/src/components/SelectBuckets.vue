@@ -60,7 +60,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
-import { getReadableSize, getReadableTime } from "../scripts/common";
+import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getReadableTime } from "../scripts/common";
 import { getBuckets } from "../scripts/openstack";
 
 const { project, scopedToken } = defineProps(["project", "scopedToken"]);
@@ -88,8 +88,6 @@ function addToast(type, msg) {
 }
 
 /** TABLE */
-const bytesSec = (100 * 1000000) / 8;
-
 let buckets = ref([]);
 let selected = ref([]);
 
@@ -109,7 +107,10 @@ const tableData = computed(() => {
   return buckets.value
     .filter((bucket) => !bucket.name.match("_segments"))
     .map((bucket) => {
-      const status = getBucketStatus(bucket);
+      // enrich data with conversion needed status that will be passed on
+      const num = getRecommendedAction(bucket);
+      bucket.conversionNeed = num;
+      const status = getBucketStatus(bucket.conversionNeed);
       return {
         name: {
           value: null,
@@ -146,8 +147,10 @@ const tableData = computed(() => {
             }
           : { value: null },
         // keep bucket object in table data to simplify selection addition/removal
+        // add segments size to bucket
         bucket: {
-          value: bucket,
+          value:
+            bucket.count && bucket.bytes === 0 ? { ...bucket, segmentsBytes: getSegmentsBytes(bucket.name) } : bucket,
         },
       };
     });
@@ -156,17 +159,22 @@ const tableData = computed(() => {
 const quotaNeeded = computed(() => {
   return selected.value.reduce((quota, bucket) => {
     if (bucket.count && bucket.bytes === 0) {
-      // get bytes from segments bucket
-      const segments = buckets.value.find((b) => b.name === `${bucket.name}_segments`);
-      return quota + (segments?.bytes ?? 0);
+      const bytes = getSegmentsBytes(bucket.name);
+      return quota + bytes;
     } else {
       return quota + bucket.bytes;
     }
   }, 0);
 });
 
+function getSegmentsBytes(bucketName) {
+  // get bytes from segments bucket
+  const segments = buckets.value.find((b) => b.name === `${bucketName}_segments`);
+  return segments?.bytes ?? 0;
+}
+
 const estimatedTime = computed(() => {
-  return Math.round(quotaNeeded.value / bytesSec);
+  return Math.round(quotaNeeded.value / estimatedBytesPerSec);
 });
 
 // Add a bucket to the selected bucket listing
@@ -215,24 +223,10 @@ function getRecommendedAction(bucket) {
 
   return 0;
 }
-
-function getBucketStatus(bucket) {
-  const statusNum = getRecommendedAction(bucket);
-  if (statusNum >= 5) {
-    return { type: "error", value: "Urgent" };
-  }
-  // For now cases when migration not needed is not considered
-  return null;
-}
 </script>
 <style scoped>
 c-row {
   margin-top: 2rem;
-}
-c-data-table {
-  margin-top: 1rem;
-  --c-data-table-highlighted-column-background-color: var(--c-white);
-  --c-icon-color: var(--c-primary-600);
 }
 .alert-wrapper {
   margin: 1rem 0;

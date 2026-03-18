@@ -197,7 +197,7 @@ export async function getBuckets(token) {
 
       bucket_page = await resp.json();
       if (bucket_page.length > 0) buckets = [...buckets, ...bucket_page];
-      marker = buckets[buckets.length - 1].name;
+      marker = buckets[buckets.length - 1]?.name ?? "";
     } catch (e) {
       console.log(e);
       break;
@@ -294,7 +294,7 @@ export async function getObjects(token, bucket, prefix = "") {
 
       object_page = await resp.json();
       if (object_page.length > 0) objects = [...objects, ...object_page];
-      marker = objects[objects.length - 1].name;
+      marker = objects[objects.length - 1]?.name ?? "";
     } catch (e) {
       console.log(e);
       break;
