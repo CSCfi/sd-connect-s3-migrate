@@ -50,6 +50,9 @@ checkDependencies() {
 	done
 }
 
+cleanUp() {
+	rm -f "$RCLONE_CONFIG"
+}
 
 # Generate the configuration for rclone from template
 generateRclone() {
@@ -110,6 +113,9 @@ convertBucketName() {
 
 echo "Checking that the required dependencies exist within the environment..."
 checkDependencies
+
+# Run cleanup functions on exit.
+trap cleanUp SIGTERM SIGINT ERR EXIT
 
 echo "Generating rclone configuration for $OS_PROJECT_NAME"
 generateRclone
