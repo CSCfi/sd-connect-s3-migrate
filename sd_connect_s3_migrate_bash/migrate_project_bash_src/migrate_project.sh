@@ -62,10 +62,10 @@ generateRclone() {
 	fi
 
 	# Can't be bothered to parse saved input to save API requests
-	# First item is the access key id
-	ec2_access=$(openstack ec2 credential list -f value | head -n 1 | tr -s '[:blank:]' '\n' | sed '1q;d')
-	# Second item is the secret access key
-	ec2_secret=$(openstack ec2 credential list -f value | head -n 1 | tr -s '[:blank:]' '\n' | sed '2q;d')
+	# First get the access key id
+	ec2_access=$(openstack ec2 credential list -f json | jq -r --arg OS_PROJECT_ID $OS_PROJECT_ID 'map(select(.["Project ID"] == $OS_PROJECT_ID)) | .[0] | .Access')
+	# Then the actual access key
+	ec2_secret=$(openstack ec2 credential list -f json | jq -r --arg OS_PROJECT_ID $OS_PROJECT_ID 'map(select(.["Project ID"] == $OS_PROJECT_ID)) | .[0] | .Secret')
 
 	# Retrieve the endpoint from the service catalog
 	s3_endpoint=$(openstack catalog show object-store -f json | jq -r '.endpoints[] | select( .interface == "public").url' | sed "s/\/swift\/v1//g")
