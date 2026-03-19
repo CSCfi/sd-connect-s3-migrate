@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-
 # Gather the variables from the environment
 : ${OS_USERNAME:=""}
 : ${OS_USER_DOMAIN_NAME:=""}
@@ -148,7 +147,7 @@ echo "Started bucket migration"
 
 for bucket in "${MIGRATE_BUCKETS[@]}"; do
 	convertedBucket=$(convertBucketName "$bucket")
-	echo "Migrating bucket: $bucket to $(convertBucketName $convertedBucket)"
+	echo "Migrating bucket: $bucket to $(convertBucketName $bucket)"
 
 	# Migrate the bucket contents
 	echo "Migrating bucket contents..."
@@ -163,5 +162,5 @@ for bucket in "${MIGRATE_BUCKETS[@]}"; do
 		echo "Set the environment variables SD_CONNECT_API_TOKEN and SD_CONNECT_API_ADDRESS to enable header migration."
 	fi
 
-	# TODO: implement sharing migration in sd-lock-util and use it		
+	# TODO: implement sharing migration in sd-lock-util and use it
 done
