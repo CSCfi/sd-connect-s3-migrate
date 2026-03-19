@@ -5,6 +5,13 @@
  */
 export const estimatedBytesPerSec = (100 * 1000000) / 8;
 
+export const migrationStages = {
+  starting: "starting",
+  sharing: "sharing",
+  headers: "headers",
+  objects: "objects",
+};
+
 /**
  * Set a timeout for a number of milliseconds
  * @param {number} ms - milliseconds

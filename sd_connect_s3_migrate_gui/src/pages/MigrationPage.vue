@@ -45,13 +45,17 @@
           @bucketsMigrated="handleBucketsMigrated"
           :buckets="buckets"
           :scopedToken="scopedToken"
-          :activeProject="active_project"
+          :project="active_project"
           :s3address="getS3endpoint()"
         />
       </div>
 
       <div id="results-card" v-if="step == 5">
-        <Results :migratedBuckets="migratedBuckets" />
+        <Results
+          :project="active_project"
+          :migratedBuckets="migratedBuckets"
+          @startNewConversion="startNewConversion"
+        />
       </div>
     </div>
   </div>
@@ -138,6 +142,11 @@ async function handleBucketsMigrated(buckets) {
 
 function goBack() {
   step.value--;
+}
+
+function startNewConversion() {
+  step.value = 1;
+  // clear values
 }
 </script>
 
