@@ -38,7 +38,7 @@ let password = "";
 let unscoped = "";
 let loginFailed = ref(false);
 
-const emit = defineEmits(["loginSuccessful"]);
+const emit = defineEmits(["login-successful"]);
 
 async function allasLogin() {
   if (!username || !password) {
@@ -48,7 +48,7 @@ async function allasLogin() {
   unscoped = await loginWithUserpass(username, password);
   if (unscoped) {
     loginFailed.value = false;
-    emit("loginSuccessful", unscoped, username);
+    emit("login-successful", unscoped, username);
   } else {
     loginFailed.value = true;
   }

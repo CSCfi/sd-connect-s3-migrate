@@ -41,7 +41,7 @@ import MigrationBucketTable from "./MigrationBucketTable.vue";
 import { timeout } from "../scripts/common";
 
 const { project, migratedBuckets } = defineProps(["project", "migratedBuckets"]);
-const emit = defineEmits(["startNewConversion"]);
+const emit = defineEmits(["start-new-conversion"]);
 
 const showDeleteAlert = ref(true);
 const deleteSuccess = ref();
@@ -69,7 +69,7 @@ function quit() {
 }
 function startConversion() {
   if (deleting.value) return;
-  emit("startNewConversion");
+  emit("start-new-conversion");
 }
 </script>
 <style scoped>
