@@ -33,4 +33,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- (users) migration bash script no longer uses incorrect project when first item on ec2 credential list is not owned by active project
+- migration bash script no longer uses incorrect project when first item on ec2 credential list is not owned by active project
 - Fixed app flow between the steps (#11)
