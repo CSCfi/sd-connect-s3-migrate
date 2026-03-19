@@ -27,3 +27,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Adjust token step to Figma design (#26)
 - Adjust project selection step accordingly to Figma (#25)
 - Updated login view accordingly to Figma (#24)
+
+### Fixed
+
+- Fixed app flow between the steps (#11)
