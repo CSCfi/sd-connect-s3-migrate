@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- bash CLI tool now has scripts for building an AppImage of the script
 - (users) a simple bash script for migrating urgent (containing whitespace) buckets in a single command
 - a simple bash script for migrating urgent (containing whitespace) buckets in a single command
 - Configure UI linting and formatting (#37)
