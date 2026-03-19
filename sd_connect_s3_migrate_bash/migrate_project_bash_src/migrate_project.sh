@@ -70,6 +70,10 @@ generateRclone() {
 	# Retrieve the endpoint from the service catalog
 	s3_endpoint=$(openstack catalog show object-store -f json | jq -r '.endpoints[] | select( .interface == "public").url' | sed "s/\/swift\/v1//g")
 
+	# Ensure correct file permissions before appending
+	touch "$RCLONE_CONFIG"
+	chmod 600 "$RCLONE_CONFIG"
+
 	cat > "$RCLONE_CONFIG" <<EOF
 [$OS_PROJECT_ID-swift]
 type = swift
