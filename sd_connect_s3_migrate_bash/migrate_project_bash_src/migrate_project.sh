@@ -28,7 +28,7 @@ checkDependencies() {
         cmd="${dep%%:*}";
 		min="${dep#*:}";
 
-		if !command -v $cmd > /dev/null 2>&1; then
+		if ! command -v $cmd > /dev/null 2>&1; then
 			echo "Error: $cmd is not installed or not in PATH";
 			exit 1;
 		fi
@@ -52,6 +52,7 @@ checkDependencies() {
 
 cleanUp() {
 	rm -f "$RCLONE_CONFIG"
+	exit
 }
 
 # Generate the configuration for rclone from template
