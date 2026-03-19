@@ -9,6 +9,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- (users) a simple bash script for migrating urgent (containing whitespace) buckets in a single command
+- a simple bash script for migrating urgent (containing whitespace) buckets in a single command
 - Configure UI linting and formatting (#37)
 - (users) the UI can now be used to copy over Swift objects to S3 compatible bucket naming scheme and file format
 - bucket creation
