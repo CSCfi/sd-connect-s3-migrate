@@ -152,7 +152,7 @@ for bucket in "${MIGRATE_BUCKETS[@]}"; do
 	# Migrate the bucket contents
 	echo "Migrating bucket contents..."
 	rclone --config "$RCLONE_CONFIG" copy --progress "$OS_PROJECT_ID-swift:$bucket" "$OS_PROJECT_ID:$convertedBucket"
-	
+
 	# Migrate the bucket headers
 	if [[ -n "$SD_CONNECT_API_TOKEN" && -n "$SD_CONNECT_API_ADDRESS" ]]; then
 		echo "Migrating bucket headers..."
@@ -162,5 +162,12 @@ for bucket in "${MIGRATE_BUCKETS[@]}"; do
 		echo "Set the environment variables SD_CONNECT_API_TOKEN and SD_CONNECT_API_ADDRESS to enable header migration."
 	fi
 
+	if [[ -n "$SD_CONNECT_API_TOKEN" && -n "$SD_CONNECT_API_ADDRESS" ]]; then
+		echo "Migrating bucket sharing..."
+		sd-lock-util migrate-sharing --no-check-certificate "$bucket" "$convertedBucket"
+	else
+		echo "SD Connect API not configured, not migrating sharing."
+		echo "Set the environment variables SD_CONNECT_API_TOKEN and SD_CONNECT_API_ADDRESS to enable sharing migration."
+	fi
 	# TODO: implement sharing migration in sd-lock-util and use it
 done
