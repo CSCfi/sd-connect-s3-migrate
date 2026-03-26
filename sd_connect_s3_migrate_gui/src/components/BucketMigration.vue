@@ -536,7 +536,7 @@ async function migrateBucketSharing(bucket) {
         Principal: {
           AWS: `arn:aws:iam::${project}:root`,
         },
-        Actions: [
+        Action: [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectTagging",
