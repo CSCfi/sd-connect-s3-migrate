@@ -248,7 +248,7 @@ export async function getBucketACLs(token, bucket) {
         .replaceAll(" ", "") // get rid of spaces, that are allowed in Openstack spec
         .split(",") // split the listing to a list of share entries
         .filter((item) => !item.match(/\*\.\*/)) // filter out the authenticated global share if it exists
-        .map((item) => !item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
+        .map((item) => item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
   } catch (e) {
     console.log("Failed to retrieve bucket ACLs.");
