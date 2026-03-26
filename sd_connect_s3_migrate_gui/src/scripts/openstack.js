@@ -239,15 +239,15 @@ export async function getBucketACLs(token, bucket) {
       ACLs.read = readAcl
         .replaceAll(" ", "") // get rid of spaces, that are allowed in Openstack spec
         .split(",") // split the listing to a list of share entries
-        .filter((item) => !item.match(".r") && !item.match(".rlistings")) // filter out global shares if they exist
-        .filter((item) => !item.match("*.*")) // filter out the authenticated global share if it exists
+        .filter((item) => !item.match(/\.r/g) || !item.match(/\.rlistings/g)) // filter out global shares if they exist
+        .filter((item) => !item.match(/\*\.\*/)) // filter out the authenticated global share if it exists
         .map((item) => item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
     if (writeAcl) {
       ACLs.write = writeAcl
         .replaceAll(" ", "") // get rid of spaces, that are allowed in Openstack spec
         .split(",") // split the listing to a list of share entries
-        .filter((item) => !item.match("*.*")) // filter out the authenticated global share if it exists
+        .filter((item) => !item.match(/\*\.\*/)) // filter out the authenticated global share if it exists
         .map((item) => !item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
   } catch (e) {
