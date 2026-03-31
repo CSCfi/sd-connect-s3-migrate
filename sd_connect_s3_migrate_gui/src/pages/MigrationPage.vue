@@ -39,6 +39,7 @@
       <div id="migration-card" v-if="step == 4">
         <Migration
           @buckets-migrated="handleBucketsMigrated"
+          :sdApiToken="apiToken"
           :buckets="selectedBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"

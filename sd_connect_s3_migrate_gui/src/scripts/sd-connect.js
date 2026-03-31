@@ -28,15 +28,40 @@ import { SD_CONNECT_API_URL } from "./config";
  * @param {number} lifetime - lifetime in seconds describing how long the signature is valid
  * @returns {Signature} - the signature for the request
  */
-export function sign_api_request(apiKey, path, lifetime = 3600) {
+export async function sign_api_request(apiKey, path, lifetime = 3600) {
+  const encoder = new TextEncoder();
+
   // Convert the calculated lifetime to a string
-  const validUntil = (Math.floor(Date.now() / 1000) + lifetime).toString;
+  const validUntil = (Math.floor(Date.now() / 1000) + lifetime).toString();
   const toSign = `${validUntil}${path}`
+  const toSignArray = encoder.encode(toSign);
+
+  // Parse the key
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(apiKey),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  console.log(key);
 
   // Get the signature
-  const key = Buffer.from(apiKey);
+  const signature = await window.crypto.subtle.sign(
+    "HMAC",
+    key,
+    toSignArray,
+  );
+
+  // Get the digest
+  const hashArray = Array.from(new Uint8Array(signature));
+  const hexDigest = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+  console.log(`Signature digest: ${hexDigest}`);
+
+  // Get the signature
   return {
-    signature: crypto.createHmac("sha256", key).update(toSign).digest("hex"),
+    signature: hexDigest,
     valid: validUntil,
   };
 }
@@ -52,7 +77,7 @@ export function sign_api_request(apiKey, path, lifetime = 3600) {
 async function _getProjectPublicKey(apiKey, projectName) {
   // Sign the path
   const path = `/cryptic/${projectName}/keys`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -61,7 +86,8 @@ async function _getProjectPublicKey(apiKey, projectName) {
 
   try {
     const keyResp = await fetch(keyUrl);
-    const key = await keyResp.json();
+    const keyBase64 = await keyResp.text();
+    const key = Uint8Array.fromBase64(keyBase64);
     return key;
   } catch (e) {
     console.log("Failed to retrieve the project public key");
@@ -88,7 +114,7 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
 
   // Sign the path
   const path = `/cryptic/${projectName}/whitelist`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
   
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -117,7 +143,7 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
 export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
   // Sign the path
   const path = `/cryptic/${projectName}/whitelist`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -148,7 +174,7 @@ export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
 export async function getFileHeader(apiKey, projectName, bucket, key) {
   // Sign the path
   const path = `/header/${projectName}/${bucket}/${key}`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -157,7 +183,8 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
 
   try {
     const headerResp = await fetch(keyUrl);
-    const header = await headerResp.bytes();
+    const encHeader = await headerResp.text();
+    const header = Uint8Array.fromBase64(encHeader);
     if (header.length > 0) {
       return header;
     }
@@ -183,7 +210,7 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
 export async function putFileHeader(apiKey, projectName, bucket, key, header) {
   // Sign the path
   const path = `/header/${projectName}/${bucket}/${key}`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -207,18 +234,18 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
 
 
 /**
- * Get the sharing whitelist for a bucket.
+ * Check the existence of a project in the bucket sharing whitelist.
  * @param {*} apiKey - the API key used when signing requests
  * @param {*} projectName - the name of the project used
  * @param {*} bucket - the bucket of the sharing whitelist
  * @returns {Promise<Array<string>>} - the sharing whitelist in the bucket
  */
-export async function getSharingWhitelist(apiKey, projectName, bucket) {
-  let whitelist = [];
+export async function checkSharingWhitelist(apiKey, projectName, bucket, receiverProjectName) {
+  let whitelist = {};
 
   // Sign the path
-  const path = `/cryptic/${projectName}/${bucket}`;
-  const signature = sign_api_request(apiKey, path);
+  const path = `/check/${projectName}/${bucket}/${receiverProjectName}`;
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let sharingWhitelistUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
@@ -231,8 +258,10 @@ export async function getSharingWhitelist(apiKey, projectName, bucket) {
   } catch(e) {
     console.log("Failed to retrieve bucket sharing whitelist");
     console.log(e);
-    whitelist = [];
+    whitelist = {};
   }
+
+  console.log(whitelist);
 
   return whitelist;
 }
@@ -249,11 +278,15 @@ export async function checkProjectIDs(projectName) {
   let ids = {}
   try {
     const idResp = await fetch(idUrl);
+    if (idResp.status === 204) {
+      console.log("Project doesn't exist in the sharing whitelist for bucket.");
+      return undefined;
+    }
     ids = await idResp.json();
   } catch (e) {
     console.log("Failed to retrieve the project id query");
-    console.log(e)
-    return {}
+    console.log(e);
+    return undefined;
   }
 
   return ids;
@@ -271,7 +304,7 @@ export async function checkProjectIDs(projectName) {
 export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist) {
   // Sign the path
   const path = `/cryptic/${projectName}/${bucket}`;
-  const signature = sign_api_request(apiKey, path);
+  const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
   let sharingWhitelistUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
