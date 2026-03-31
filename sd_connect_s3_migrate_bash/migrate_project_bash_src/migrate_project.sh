@@ -21,6 +21,69 @@ REQ_CMDS="node:22 npm:9 sd-lock-util rclone openstack jq slugify"
 RCLONE_CONFIG="$PWD/.rclone-config-$OS_PROJECT_ID"
 
 
+# Check the required environment variables are present
+checkEnvars() {
+    ENVARS_MISSING=0
+
+	if [ -z $OS_USERNAME ]; then 
+		echo "OS_USERNAME not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_USER_DOMAIN_NAME ]; then 
+		echo "OS_USER_DOMAIN_NAME not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_PASSWORD ]; then 
+		echo "OS_PASSWORD not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_PROJECT_ID ]; then 
+		echo "OS_PROJECT_ID not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_PROJECT_NAME ]; then 
+		echo "OS_PROJECT_NAME not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_PROJECT_DOMAIN_ID ]; then 
+		echo "OS_PROJECT_DOMAIN_ID not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $OS_INTERFACE ]; then 
+		echo "OS_INTERFACE not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ $OS_INTERFACE != "public" ]; then 
+		echo "OS_INTERFACE is not marked as `public`. You may want to check this in case the migration script fails.";
+	fi
+	if [ -z $OS_IDENTITY_API_VERSION ]; then 
+		echo "OS_IDENTITY_API_VERSION not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ $OS_IDENTITY_API_VERSION -lt 3 ]; then 
+		echo "OS_IDENTITY_API_VERSION is set to older than 3. You may want to check this in case the migration script fails.";
+		echo "Version 3 is strongly recommended, and identity API versions 1 and 2 have not been tested.";
+	fi
+	if [ -z $OS_AUTH_URL ]; then 
+		echo "OS_AUTH_URL not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $SD_CONNECT_API_ADDRESS ]; then 
+		echo "SD_CONNECT_API_ADDRESS not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+	if [ -z $SD_CONNECT_API_TOKEN ]; then 
+		echo "SD_CONNECT_API_TOKEN not defined, define it in the environment to correctly run the migration script.";
+		ENVARS_MISSING+=1;
+	fi
+
+	if [ $ENVARS_MISSING -gt 0 ]; then
+		echo "Aborting due to missing environment variables. Ensure the required environment variables are present and correctly set.";
+		exit $ENVARS_MISSING;
+	fi
+}
+
+
 # Check the dependencies for the script
 checkDependencies() {
     for dep in $REQ_CMDS; do
@@ -100,7 +163,7 @@ EOF
 
 # Convert bucket name into an s3 compatible format
 convertBucketName() {
-	suffix="-converted"
+	suffix="-conv"
 	max=63
 	base_max=$((max - ${#suffix}))
 
@@ -117,6 +180,7 @@ convertBucketName() {
 
 echo "Checking that the required dependencies exist within the environment..."
 checkDependencies
+checkEnvars
 
 # Run cleanup functions on exit.
 trap cleanUp SIGTERM SIGINT ERR EXIT
@@ -147,7 +211,7 @@ echo "Started bucket migration"
 
 for bucket in "${MIGRATE_BUCKETS[@]}"; do
 	convertedBucket=$(convertBucketName "$bucket")
-	echo "Migrating bucket: $bucket to $(convertBucketName $bucket)"
+	echo "Migrating bucket: $bucket to $convertedBucket"
 
 	# Migrate the bucket contents
 	echo "Migrating bucket contents..."
