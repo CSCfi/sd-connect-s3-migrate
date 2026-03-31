@@ -378,13 +378,14 @@ async function conventionalCopyObject(bucket, key, size) {
         Body: object,
         Bucket: convertBucketName(bucket),
         Key: key,
-        PartNumber: partNumber,
+        PartNumber: partNumber + 1,
         UploadId: uploadId,
       });
       const multipartPartResp = await client.send(putObjectPart);
+      console.log(multipartPartResp);
       multipartParts.push({
-        ETag: multipartPartResp?.ETag,
-        PartNumber: partNumber,
+        PartNumber: partNumber + 1,
+        ETag: multipartPartResp.ETag.replaceAll("\"", ""),
       });
       partNumber++;
     } catch (e) {
@@ -392,14 +393,16 @@ async function conventionalCopyObject(bucket, key, size) {
     }
   }
 
+  console.log(multipartParts);
+
   // Finish the multipart copy
   const finishMultipart = new CompleteMultipartUploadCommand({
     Bucket: convertBucketName(bucket),
     Key: key,
     MultipartUpload: {
       Parts: multipartParts,
-      UploadId: uploadId,
     },
+    UploadId: uploadId,
   });
   const finishMultipartResponse = await client.send(finishMultipart);
   console.log(finishMultipartResponse);
