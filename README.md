@@ -7,6 +7,8 @@ As such, now with the move away from the Swift API we need to add a
 suitable tool to fix these compatibility issues between different file
 versions and bucket layouts.
 
+### Migration GUI
+
 The tool provides a simple UI for starting the migration, and does the
 following things:
 
@@ -21,12 +23,23 @@ following things:
 	* Verifies content checksums
 	* Verifies that all files have a matching header if it existed in the first place
 
+More detailed instructions for the GUI can be found in its respective
+`README.md` [here.](/sd_connect_s3_migrate_gui/README.md)
+
+### Migration CLI
+
+Additionally, there are two additional tools provided for CLI users:
+
+* bash based script for a quick migration of the urgently migrated buckets (in review)
+    * [Script README](/sd_connect_s3_migrate_bash/README.md)
+* python based more comprehensive script for longer running operations (TODO)
+    * [Python CLI README](/sd_connect_s3_migrate_cli/README.md)
+
 ### Dependencies
 
 The tool is built into a singular binary, that should not require any
 additional dependencies. Both the CLI script and the UI should be
 portable, and runable without admin permissions. If someone is in the
 unfortunate position where their employer whitelists only specific
-applications (even those that are portable and signed) ~thye're
-rightfully SoL~ they're able to run the application on e.g. CSC servers
-or a virtual desktop environment.
+applications (even those that are portable and signed) they will be able
+to run the application on e.g. CSC servers or in a virtual desktop environment.
