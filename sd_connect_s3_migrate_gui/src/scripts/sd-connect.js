@@ -1,10 +1,6 @@
 // Convenience functions for accessing SD Connect
 
-
-import * as crypto from "crypto";
-
 import { SD_CONNECT_API_URL } from "./config";
-
 
 /**
  * A signature for an SD Connect API request
@@ -20,7 +16,6 @@ import { SD_CONNECT_API_URL } from "./config";
  * @property {string} name - the name of the project on keystone
  */
 
-
 /**
  * Sign an API request for use on the SD Connect API.
  * @param {string} apiKey - API key to be used when signing
@@ -33,7 +28,7 @@ export async function sign_api_request(apiKey, path, lifetime = 3600) {
 
   // Convert the calculated lifetime to a string
   const validUntil = (Math.floor(Date.now() / 1000) + lifetime).toString();
-  const toSign = `${validUntil}${path}`
+  const toSign = `${validUntil}${path}`;
   const toSignArray = encoder.encode(toSign);
 
   // Parse the key
@@ -47,15 +42,11 @@ export async function sign_api_request(apiKey, path, lifetime = 3600) {
   console.log(key);
 
   // Get the signature
-  const signature = await window.crypto.subtle.sign(
-    "HMAC",
-    key,
-    toSignArray,
-  );
+  const signature = await window.crypto.subtle.sign("HMAC", key, toSignArray);
 
   // Get the digest
   const hashArray = Array.from(new Uint8Array(signature));
-  const hexDigest = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  const hexDigest = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
   console.log(`Signature digest: ${hexDigest}`);
 
@@ -65,7 +56,6 @@ export async function sign_api_request(apiKey, path, lifetime = 3600) {
     valid: validUntil,
   };
 }
-
 
 /**
  * Retrieve the project public key from the SD Connect API.
@@ -96,7 +86,6 @@ async function _getProjectPublicKey(apiKey, projectName) {
   }
 }
 
-
 /**
  * Whitelist the project's public key on the SD Connect API.
  * @param {string} apiKey - the API key used when signing requests
@@ -109,13 +98,14 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
     projectKey = await _getProjectPublicKey(apiKey, projectName);
   } catch (e) {
     console.log("Aborting header retrieval due to no available project public key.");
-    throw new Error("Could not retrieve project public key for addition.");
+    console.log(e);
+    throw new Error("Could not retrieve project public key for addition.", { cause: e });
   }
 
   // Sign the path
   const path = `/cryptic/${projectName}/whitelist`;
   const signature = await sign_api_request(apiKey, path);
-  
+
   // Prepare the URL
   let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
@@ -126,13 +116,12 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
       method: "PUT",
       body: projectKey,
     });
-  } catch(e) {
+  } catch (e) {
     console.log("Failed to add the project public key to re-encryption whitelist.");
     console.log(e);
-    throw new Error("Could not add project public key to whitelist.");
+    throw new Error("Could not add project public key to whitelist.", { cause: e });
   }
 }
-
 
 /**
  * Remove the project's public key from the SD Connect API whitelist.
@@ -157,10 +146,9 @@ export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
   } catch (e) {
     console.log("Failed to delete the project public key from re-encryption whitelist.");
     console.log(e);
-    throw new Error("Could not remove the project public key from the whitelist.");
+    throw new Error("Could not remove the project public key from the whitelist.", { cause: e });
   }
 }
-
 
 /**
  * Retrieve the project-key encrypted file header from SD Connect API.
@@ -193,10 +181,9 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
     console.log("Failed to retrieve a working header for the file.");
     console.log("The file may be added for v1.");
     console.log(e);
-    throw new Error("No header for file.");
+    throw new Error("No header for file.", { cause: e });
   }
 }
-
 
 /**
  * Put the project-key encrypted file header into SD Connect API.
@@ -228,10 +215,9 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
   } catch (e) {
     console.log("Failed to put header for the file.");
     console.log(e);
-    throw new Error("Header addition failed.");
+    throw new Error("Header addition failed.", { cause: e });
   }
 }
-
 
 /**
  * Check the existence of a project in the bucket sharing whitelist.
@@ -241,7 +227,7 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
  * @returns {Promise<Array<string>>} - the sharing whitelist in the bucket
  */
 export async function checkSharingWhitelist(apiKey, projectName, bucket, receiverProjectName) {
-  let whitelist = {};
+  let whitelist;
 
   // Sign the path
   const path = `/check/${projectName}/${bucket}/${receiverProjectName}`;
@@ -255,7 +241,7 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
   try {
     const whitelistResp = await fetch(sharingWhitelistUrl);
     whitelist = await whitelistResp.json();
-  } catch(e) {
+  } catch (e) {
     console.log("Failed to retrieve bucket sharing whitelist");
     console.log(e);
     whitelist = {};
@@ -266,7 +252,6 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
   return whitelist;
 }
 
-
 /**
  * Check the project IDs.
  * @param {string} projectName - the project name to check
@@ -275,7 +260,7 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
 export async function checkProjectIDs(projectName) {
   let idUrl = new URL(`${SD_CONNECT_API_URL}/sharing/ids/${projectName}`);
 
-  let ids = {}
+  let ids;
   try {
     const idResp = await fetch(idUrl);
     if (idResp.status === 204) {
@@ -291,7 +276,6 @@ export async function checkProjectIDs(projectName) {
 
   return ids;
 }
-
 
 /**
  * Add a formatted sharing whitelist to a bucket.
@@ -316,9 +300,9 @@ export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist
       method: "PUT",
       body: JSON.stringify(whitelist),
     });
-  } catch(e) {
+  } catch (e) {
     console.log("Failed to put bucket sharing whitelist.");
     console.log(e);
-    throw new Error("Failed to add bucket sharing whitelist.");
+    throw new Error("Failed to add bucket sharing whitelist.", { cause: e });
   }
 }

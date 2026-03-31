@@ -66,7 +66,15 @@ import {
 } from "../scripts/openstack";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
-import { addProjectKeyToWhitelist, checkProjectIDs, getFileHeader, checkSharingWhitelist, putFileHeader, putSharingWhitelist, removeProjectKeyFromWhitelist } from "../scripts/sd-connect";
+import {
+  addProjectKeyToWhitelist,
+  checkProjectIDs,
+  getFileHeader,
+  checkSharingWhitelist,
+  putFileHeader,
+  putSharingWhitelist,
+  removeProjectKeyFromWhitelist,
+} from "../scripts/sd-connect";
 
 const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
   "buckets",
@@ -216,7 +224,7 @@ async function migrateBucketHeaders(bucket) {
   // Whitelist the project public key
   try {
     await addProjectKeyToWhitelist(sdApiToken, project.name);
-  } catch(e) {
+  } catch (e) {
     console.log("Could not add the project key to the whitelist.");
     console.log(e);
     console.log("Aborting bucket header migration.");
@@ -234,6 +242,7 @@ async function migrateBucketHeaders(bucket) {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
       console.log("Failed to retrieve header for object, continuing...");
+      console.log(e);
       // TODO: add proper error handling for header issues
       bucket.totalHeadersDone++;
       continue;
@@ -242,6 +251,7 @@ async function migrateBucketHeaders(bucket) {
       await putFileHeader(sdApiToken, project.name, convertBucketName(bucket.name), object.key, header);
     } catch (e) {
       console.log("Failed to add the header for object, continuing...");
+      console.log(e);
       // TODO: add proper error handling for header issues
       bucket.totalHeadersDone++;
       continue;
@@ -256,6 +266,7 @@ async function migrateBucketHeaders(bucket) {
     await removeProjectKeyFromWhitelist(sdApiToken, project.name);
   } catch (e) {
     console.log("Failed to remove project key from the whitelist after migrating bucket.");
+    console.log(e);
     return;
   }
 }
@@ -385,7 +396,7 @@ async function conventionalCopyObject(bucket, key, size) {
       console.log(multipartPartResp);
       multipartParts.push({
         PartNumber: partNumber + 1,
-        ETag: multipartPartResp.ETag.replaceAll("\"", ""),
+        ETag: multipartPartResp.ETag.replaceAll('"', ""),
       });
       partNumber++;
     } catch (e) {
@@ -579,20 +590,17 @@ async function migrateBucketSharing(bucket) {
         console.log(`Got sharing whitelist for bucket ${bucket.name}:`);
         console.log(oldSharingWhitelist?.data);
 
-        if (oldSharingWhitelist === undefined || oldSharingWhitelist?.data?.id != ids.name || oldSharingWhitelist?.data?.idkeystone != ids.id ) {
+        if (
+          oldSharingWhitelist === undefined ||
+          oldSharingWhitelist?.data?.id != ids.name ||
+          oldSharingWhitelist?.data?.idkeystone != ids.id
+        ) {
           console.log(`Project not in the bucket sharing whitelist, skipping.`);
           continue;
         }
 
         try {
-          await putSharingWhitelist(
-            sdApiToken,
-            project.name,
-            convertBucketName(bucket.name),
-            [
-              ids,
-            ]
-          );
+          await putSharingWhitelist(sdApiToken, project.name, convertBucketName(bucket.name), [ids]);
         } catch (e) {
           console.log("Failed to add project sharing whitelist.");
           console.log(e);
