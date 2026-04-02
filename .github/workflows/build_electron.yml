@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-electron:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14-intel, macos-14, windows-2022, windows-11-arm]
+
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        working-directory: ./sd_connect_s3_migrate_gui
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install system deps (Linux)
+        if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libopenjp2-tools \
+            libasound2 \
+            libnss3 \
+            libxss1 \
+            appstream \
+            desktop-file-utils \
+            fakeroot \
+            rpm \
+            libarchive-tools \
+            build-essential \
+            snapd
+      
+      - name: Install snapcraft 7 for core18 (Linux)
+        if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
+        run : |
+          sudo snap install snapcraft --classic --channel 7.x/stable
+
+      - name: Build application
+        run: |
+          if [ "${{ matrix.os }}" == "windows-2022" ] || []; then
+            npm run make:win32
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            npm run make:macos
+          else
+            npm run build:linux
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            out/make/**
+
+  build-appimage:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./sd_connect_s3_migrate_bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            tar \
+            jq \
+            unzip
+
+      - name: Build application
+        run: |
+          ./build.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            out/make/**

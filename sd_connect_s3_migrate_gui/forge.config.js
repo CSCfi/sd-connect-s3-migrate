@@ -9,10 +9,12 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        noMsi: true,
+      },
     },
     {
-      name: '@electron-forge/maker-zip',
+      name: '@electron-forge/maker-dmg',
       platforms: ['darwin'],
     },
     {
@@ -24,13 +26,19 @@ module.exports = {
       config: {},
     },
     {
-      name: '@electron-forge/maker-flatpak',
-      config: {
-        options: {
-          categories: ['Science'],
-        }
-      }
+      name: '@electron-forge/maker-zip',
+      config: {},
     },
+    {
+      name: '@electron-forge/maker-snap',
+      config: {
+        features: {
+          audio: false,
+          webgl: true,
+        },
+        summary: "Migration tool for moving from SD Connect v1/v2 to v3 bucket format",
+      }
+    }
   ],
   plugins: [
     {
