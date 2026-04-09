@@ -20,7 +20,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./sd_connect_s3_migrate_gui
+        working-directory: "./sd_connect_s3_migrate_gui"
 
     steps:
       - name: Checkout repository
@@ -30,6 +30,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache-dependency-path: "./sd_connect_s3_migrate_gui"
           cache: "npm"
 
       - name: Install dependencies
