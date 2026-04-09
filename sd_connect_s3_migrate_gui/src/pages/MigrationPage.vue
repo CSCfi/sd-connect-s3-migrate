@@ -33,6 +33,7 @@
           @go-back="goBack"
           :project="activeProject"
           :scopedToken="scopedToken"
+          :s3address="getS3endpoint()"
         />
       </div>
 
