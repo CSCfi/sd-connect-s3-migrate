@@ -29,6 +29,7 @@ module.exports = {
       name: '@electron-forge/maker-zip',
       config: {},
     },
+    // Snap builds disabled due to issues with GitHub actions platform.
     // {
     //   name: '@electron-forge/maker-snap',
     //   config: {
