@@ -58,6 +58,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
         run : |
           sudo snap install snapcraft --classic --channel 7.x/stable
+          sudo snap install multipass --classic
 
       - name: Build application
         run: |
