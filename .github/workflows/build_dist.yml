@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14-intel, macos-14, windows-2022, windows-11-arm]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14, windows-2022, windows-11-arm]
 
     runs-on: ${{ matrix.os }}
 
@@ -64,7 +64,7 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" == "windows-2022" ] || [ ${{ matrix.os }} == "windows-11-arm" ]; then
             npm run make:win32
-          elif [ "${{ matrix.os }}" == "macos-14-intel" ] || [ ${{ matrix.os }} == "macos-14" ]; then
+          elif [ ${{ matrix.os }} == "macos-14" ]; then
             npm run make:macos
           else
             npm run make:linux
