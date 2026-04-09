@@ -9,6 +9,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- (users) SD Connect v3 migration GUI can now copy over the Vault sharing when the bucket name changes to preserve `Collaborate` and `Transfer` access rights
+- (users) SD Connect v3 migration GUI now supports migrating bucket headers when the bucket name changes to preserve file decryption access
+- (users) SD Connect v3 migration GUI now supports migrating sharing from Swift ACLs to S3 bucket policies
 - (users) CLI script can now be used to migrate bucket sharing as well
 - use sd-lock-util sharing migration functionality to migrate sharing
 - bash CLI tool now has scripts for building an AppImage of the script
