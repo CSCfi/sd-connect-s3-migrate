@@ -29,16 +29,16 @@ module.exports = {
       name: '@electron-forge/maker-zip',
       config: {},
     },
-    {
-      name: '@electron-forge/maker-snap',
-      config: {
-        features: {
-          audio: false,
-          webgl: true,
-        },
-        summary: "Migration tool for moving from SD Connect v1/v2 to v3 bucket format",
-      }
-    }
+    // {
+    //   name: '@electron-forge/maker-snap',
+    //   config: {
+    //     features: {
+    //       audio: false,
+    //       webgl: true,
+    //     },
+    //     summary: "Migration tool for moving from SD Connect v1/v2 to v3 bucket format",
+    //   }
+    // }
   ],
   plugins: [
     {
