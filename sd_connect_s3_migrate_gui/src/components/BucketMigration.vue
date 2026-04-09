@@ -557,7 +557,7 @@ async function migrateBucketSharing(bucket) {
           "s3:GetObjectVersion",
           ...// If the project exists in the write ACL, also add the write statements.
           // We don't sync bare write rights as non-supported.
-          (ACLs.write.findIndex((i) => i == receiver) >= 0
+          (ACLs.write?.findIndex((i) => i == receiver) >= 0
             ? [
                 "s3:PutObject",
                 "s3:DeleteObject",
