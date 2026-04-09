@@ -1,0 +1,15 @@
+# Dockerfile for building the legacy AppImage (glibc 2.30 / RHEL 8)
+
+# Pay no mind to vulnerability complaints in the image, we're not using system provided python or pip
+FROM docker.io/almalinux:8
+
+# Pull in required dependencies
+RUN yum update -y \
+    && yum groupinstall -y "Development Tools" \
+    && yum install -y curl tar jq unzip
+
+VOLUME [ "/src" ]
+WORKDIR /src
+
+# Build script is an ok enough entrypoint
+ENTRYPOINT [ "./build.sh" ]
