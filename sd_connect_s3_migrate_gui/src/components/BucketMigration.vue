@@ -66,8 +66,23 @@ import {
 } from "../scripts/openstack";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
+import {
+  addProjectKeyToWhitelist,
+  checkProjectIDs,
+  getFileHeader,
+  checkSharingWhitelist,
+  putFileHeader,
+  putSharingWhitelist,
+  removeProjectKeyFromWhitelist,
+} from "../scripts/sd-connect";
 
-const { buckets, scopedToken, project, s3address } = defineProps(["buckets", "scopedToken", "project", "s3address"]);
+const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
+  "buckets",
+  "scopedToken",
+  "project",
+  "s3address",
+  "sdApiToken",
+]);
 
 const emit = defineEmits(["buckets-migrated"]);
 
@@ -206,13 +221,54 @@ async function migrateBucketHeaders(bucket) {
     return;
   }
 
+  // Whitelist the project public key
+  try {
+    await addProjectKeyToWhitelist(sdApiToken, project.name);
+  } catch (e) {
+    console.log("Could not add the project key to the whitelist.");
+    console.log(e);
+    console.log("Aborting bucket header migration.");
+    return;
+  }
+
   // Migrate bucket headers for objects that require it
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.headerDone) continue;
+
+    // Retrieve the previous header
+    let header;
+    try {
+      header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
+    } catch (e) {
+      console.log("Failed to retrieve header for object, continuing...");
+      console.log(e);
+      // TODO: add proper error handling for header issues
+      bucket.totalHeadersDone++;
+      continue;
+    }
+    try {
+      await putFileHeader(sdApiToken, project.name, convertBucketName(bucket.name), object.key, header);
+    } catch (e) {
+      console.log("Failed to add the header for object, continuing...");
+      console.log(e);
+      // TODO: add proper error handling for header issues
+      bucket.totalHeadersDone++;
+      continue;
+    }
+
+    bucket.totalHeadersDone++;
+    object.headerDone = true;
   }
 
-  // TODO: actual header migration
+  // Unlist the project public key
+  try {
+    await removeProjectKeyFromWhitelist(sdApiToken, project.name);
+  } catch (e) {
+    console.log("Failed to remove project key from the whitelist after migrating bucket.");
+    console.log(e);
+    return;
+  }
 }
 
 /**
@@ -333,13 +389,14 @@ async function conventionalCopyObject(bucket, key, size) {
         Body: object,
         Bucket: convertBucketName(bucket),
         Key: key,
-        PartNumber: partNumber,
+        PartNumber: partNumber + 1,
         UploadId: uploadId,
       });
       const multipartPartResp = await client.send(putObjectPart);
+      console.log(multipartPartResp);
       multipartParts.push({
-        ETag: multipartPartResp?.ETag,
-        PartNumber: partNumber,
+        PartNumber: partNumber + 1,
+        ETag: multipartPartResp.ETag.replaceAll('"', ""),
       });
       partNumber++;
     } catch (e) {
@@ -347,14 +404,16 @@ async function conventionalCopyObject(bucket, key, size) {
     }
   }
 
+  console.log(multipartParts);
+
   // Finish the multipart copy
   const finishMultipart = new CompleteMultipartUploadCommand({
     Bucket: convertBucketName(bucket),
     Key: key,
     MultipartUpload: {
       Parts: multipartParts,
-      UploadId: uploadId,
     },
+    UploadId: uploadId,
   });
   const finishMultipartResponse = await client.send(finishMultipart);
   console.log(finishMultipartResponse);
@@ -484,21 +543,21 @@ async function migrateBucketSharing(bucket) {
   const ACLs = await getBucketACLs(scopedToken, bucket.name);
   // Add statements for all read rights
   if (ACLs?.read?.length > 0) {
-    for (const project of ACLs.read) {
+    for (const receiver of ACLs.read) {
       let newStatement = {
         Sid: "GrantSDConnectSharedAccessToProject",
         Effect: "Allow",
         Principal: {
-          AWS: `arn:aws:iam::${project}:root`,
+          AWS: `arn:aws:iam::${receiver}:root`,
         },
-        Actions: [
+        Action: [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectTagging",
           "s3:GetObjectVersion",
           ...// If the project exists in the write ACL, also add the write statements.
           // We don't sync bare write rights as non-supported.
-          (ACLs.write.findIndex((i) => i == project) >= 0
+          (ACLs.write?.findIndex((i) => i == receiver) >= 0
             ? [
                 "s3:PutObject",
                 "s3:DeleteObject",
@@ -516,6 +575,39 @@ async function migrateBucketSharing(bucket) {
 
       // Append the new statement to the list of statements
       policy.Statement.push(newStatement);
+
+      // If the bucket name has changed, migrate the Vault side sharing for the current project
+      if (bucket.name !== convertBucketName(bucket.name) && SD_CONNECT_API_URL) {
+        // Retrieve the receiver project IDs
+        const ids = await checkProjectIDs(receiver);
+        console.log(`Got project IDs ${ids}`);
+        if (ids?.id === undefined || ids?.name === undefined) {
+          console.log(`No project id cache for project ${receiver}, skipping`);
+          continue;
+        }
+
+        let oldSharingWhitelist = await checkSharingWhitelist(sdApiToken, project.name, bucket.name, ids.name);
+        console.log(`Got sharing whitelist for bucket ${bucket.name}:`);
+        console.log(oldSharingWhitelist?.data);
+
+        if (
+          oldSharingWhitelist === undefined ||
+          oldSharingWhitelist?.data?.id != ids.name ||
+          oldSharingWhitelist?.data?.idkeystone != ids.id
+        ) {
+          console.log(`Project not in the bucket sharing whitelist, skipping.`);
+          continue;
+        }
+
+        try {
+          await putSharingWhitelist(sdApiToken, project.name, convertBucketName(bucket.name), [ids]);
+        } catch (e) {
+          console.log("Failed to add project sharing whitelist.");
+          console.log(e);
+        }
+      } else {
+        console.log("SD Connect API URL not configured, not migrating sharing.");
+      }
     }
   }
   try {
@@ -543,13 +635,6 @@ async function migrateBucketSharing(bucket) {
 
   // Mark sharing as migrated
   bucket.sharingMigrated = true;
-
-  // If the bucket name has changed, we need to migrate the Vault side sharing
-  // info as well
-  if (bucket.name == convertBucketName(bucket.name)) return;
-  // If we don't have API access configured, skip the operation Vault share migrate
-  if (!SD_CONNECT_API_URL) return;
-  // TODO: implement Vault sharing
 }
 
 /**
