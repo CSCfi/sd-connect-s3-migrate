@@ -59,9 +59,9 @@ jobs:
 
       - name: Build application
         run: |
-          if [ "${{ matrix.os }}" == "windows-2022" ] || []; then
+          if [ "${{ matrix.os }}" == "windows-2022" ] || [ ${{ matrix.os }} == "windows-11-arm" ]; then
             npm run make:win32
-          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          elif [ "${{ matrix.os }}" == "macos-14-intel" ] || [ ${{ matrix.os }} == "macos-14" ]; then
             npm run make:macos
           else
             npm run build:linux
