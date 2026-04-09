@@ -111,4 +111,4 @@ jobs:
         with:
           name: build-${{ matrix.os }}
           path: |
-            out/make/**
+            ./*.AppImage
