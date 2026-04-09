@@ -74,7 +74,7 @@ jobs:
         with:
           name: build-${{ matrix.os }}
           path: |
-            out/make/**
+            sd_connect_s3_migrate_gui/out/make/**
 
   build-appimage:
     strategy:
@@ -112,4 +112,4 @@ jobs:
         with:
           name: build-${{ matrix.os }}
           path: |
-            ./*.AppImage
+            sd_connect_s3_migrate_bash/*.AppImage
