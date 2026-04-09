@@ -15,7 +15,11 @@
           <span class="alert-text">
             We recommend that you don't upload files to this bucket to ensure smooth conversion process.
           </span>
-          <c-link underline href="#" target="_blank">
+          <c-link
+            underline
+            href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#35-during-conversion"
+            target="_blank"
+          >
             See detailed instructions
             <c-icon :path="mdiOpenInNew" />
           </c-link>

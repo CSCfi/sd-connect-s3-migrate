@@ -10,8 +10,11 @@
       connection. We recommend deleting unneeded files and buckets from SD Connect before starting conversion as this
       shortens conversion time.
     </p>
-    <!--TODO add link when it exists-->
-    <c-link underline href="#" target="_blank">
+    <c-link
+      underline
+      href=" https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
+      target="_blank"
+    >
       See detailed instructions
       <c-icon :path="mdiOpenInNew" />
     </c-link>
