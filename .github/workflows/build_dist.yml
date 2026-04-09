@@ -19,6 +19,7 @@ jobs:
 
     defaults:
       run:
+        shell: bash
         working-directory: ./sd_connect_s3_migrate_gui
 
     steps:
