@@ -86,7 +86,7 @@ jobs:
         run: |
           echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" >> certificate.b64
           certutil -decode certificate.b64 certificate.crt
-          del certificate.b64
+          rm certificate.b64
 
       - name: Build application
         env:
@@ -104,7 +104,7 @@ jobs:
       - name: Delete temporary certificate file
         if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
         run: |
-          del certificate.crt
+          rm certificate.crt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
