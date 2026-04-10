@@ -87,6 +87,8 @@ jobs:
           echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" > certificate.b64
           certutil -decode certificate.b64 "$RUNNER_TEMP/certificate.pfx"
           rm certificate.b64
+          openssl pkcs12 -info -in "$RUNNER_TEMP/certificate.pfx" -noout -passin pass:"${{ secrets.WINDOWS_CERT_PASSWORD }}"
+          echo "Certificate verified"
 
       - name: Build application
         env:
