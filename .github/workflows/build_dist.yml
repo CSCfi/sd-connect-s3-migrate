@@ -28,6 +28,9 @@ jobs:
 
 
   build-electron:
+    name: "Create electron release assets"
+    needs: "create-release"
+
     strategy:
       fail-fast: false
       matrix:
@@ -104,6 +107,9 @@ jobs:
           fail_on_unmatched_files: true
 
   build-appimage:
+    name: "Create Linux AppImage release assets for CLI script"
+    needs: "create-release"
+
     strategy:
       fail-fast: false
       matrix:
