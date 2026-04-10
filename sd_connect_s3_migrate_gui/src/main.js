@@ -1,6 +1,11 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
+import fs from "fs/promises";
+
+/**
+ * @typedef {import { MigrationState } from "scripts/types.js";}
+ */
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -22,6 +27,51 @@ function UpsertKeyValue(obj, keyToChange, value) {
   obj[keyToChange] = value;
 }
 
+// Resumable migration process logic
+const STATE_FILE_PATH = path.join(app.getPath("Documents"), "SD-Connect-S3-Migrate", "migration-state.json");
+
+/**
+ * Handle the migration state save event
+ * @param {*} _event - placefolder for the event
+ * @param {MigrationState} state - the current state of the migration
+ */
+async function saveMigrationStateHandler(_event, state) {
+  await fs.mkdir(path.dirname(STATE_FILE_PATH), { recursive: true });
+  await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
+}
+
+/**
+ * Handle the migration state load event
+ * @returns {MigrationState}
+ */
+async function loadMigrationStateHandler() {
+  try {
+    const data = await fs.readFile(STATE_FILE_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return null; // first run or file deleted by user
+  }
+}
+
+/**
+ * Handle the migration state clear event
+ */
+async function clearMigrationStateHandler() {
+  try {
+    const t = new Date();
+    // Rename the existing state if it exists when the user cancels the resume.
+    // We'll keep the old versions with a date stamp attached.
+    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${t.getISOString()}.json`);
+  } catch {
+    return;
+  }
+}
+
+ipcMain.handle("save-migration-state", saveMigrationStateHandler);
+ipcMain.handle("load-migration-state", loadMigrationStateHandler);
+ipcMain.handle("clear-migration-state", clearMigrationStateHandler);
+
+// Expose development mode on the rendered process
 const devMode = !app.isPackaged;
 ipcMain.handle("get-devmode", () => {
   return devMode;
@@ -34,6 +84,11 @@ const createWindow = () => {
     height: 1080,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: true,
+      enableRemoteModule: true,
+      contextIsolation: false,
+      nodeIntegrationInWorker: true,
+      nodeIntegrationInSubFrames: true,
       webSecurity: false,
     },
   });
