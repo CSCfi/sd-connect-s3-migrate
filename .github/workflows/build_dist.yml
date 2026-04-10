@@ -84,13 +84,13 @@ jobs:
       - name: Create temporary certificate file
         if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
         run: |
-          echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" >> certificate.b64
-          certutil -decode certificate.b64 certificate.crt
+          echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" > certificate.b64
+          certutil -decode certificate.b64 "$RUNNER_TEMP/certificate.pfx"
           rm certificate.b64
 
       - name: Build application
         env:
-          WINDOWS_CERTIFICATE_FILE: certificate.crt
+          WINDOWS_CERTIFICATE_FILE: ${{ runner.temp }}/certificate.pfx
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           if [ "${{ matrix.os }}" == "windows-2022" ] || [ ${{ matrix.os }} == "windows-11-arm" ]; then
@@ -104,7 +104,7 @@ jobs:
       - name: Delete temporary certificate file
         if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
         run: |
-          rm certificate.crt
+          rm "$RUNNER_TEMP/certificate.pfx"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
