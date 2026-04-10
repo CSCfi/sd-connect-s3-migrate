@@ -24,5 +24,20 @@
  */
 
 /**
- * @typedef {MigrationEntry[]} MigrationState
+ * @typedef {MigrationEntry[]} MigrationBucketList
+ */
+
+/**
+ * @typedef {Object} OpenstackProject
+ * @property {string} id - keystone id of the project
+ * @property {string} name - keystone name of the project
+ */
+
+/**
+ * @typedef {Object} MigrationState
+ * @property {MigrationBucketList} - List of the buckets being migrated
+ * @property {string} timestamp - Migration start date
+ * @property {string} username - The migration user name
+ * @property {string} apiToken - SD Connect API token
+ * @property {OpenstackProject} project - the project being used for the migration
  */
