@@ -9,6 +9,24 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.create_release.outputs.id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            Release ${{ steps.vars.outputs.tag }} of Swift to S3 Migration Tool for SD Connect.
+
+
   build-electron:
     strategy:
       fail-fast: false
