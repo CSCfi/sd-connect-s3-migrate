@@ -95,6 +95,14 @@ jobs:
           path: |
             sd_connect_s3_migrate_gui/out/make/**
 
+      - name: Upload release assets
+        id: upload-release-asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: sd_connect_s3_migrate_gui/out/make/**
+          fail_on_unmatched_files: true
+
   build-appimage:
     strategy:
       fail-fast: false
@@ -132,3 +140,11 @@ jobs:
           name: cli-build-${{ matrix.os }}
           path: |
             sd_connect_s3_migrate_bash/*.AppImage
+
+      - name: Upload release assets
+        id: upload-release-asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: sd_connect_s3_migrate_bash/*.AppImage
+          fail_on_unmatched_files: true
