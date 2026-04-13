@@ -10,9 +10,9 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
-        certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
-        signWithParams: '/tr http://timestamp.digicert.com /td sha256 /fd sha256',
+        // certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
+        // certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
+        // signWithParams: '/tr http://timestamp.digicert.com /td sha256 /fd sha256',
         noMsi: true,
       },
     },
