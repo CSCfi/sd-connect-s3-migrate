@@ -7,6 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- (users) Added links to instructions in user docs (#43)
+- (users) Added end-of-year status to buckets
+
 ## [2026.4.13] - 2026-04-10
 
 ## [2026.4.12] - 2026-04-10
