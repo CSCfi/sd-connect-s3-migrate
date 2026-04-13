@@ -10,20 +10,24 @@
       connection. We recommend deleting unneeded files and buckets from SD Connect before starting conversion as this
       shortens conversion time.
     </p>
-    <!--TODO add link when it exists-->
-    <c-link underline href="#" target="_blank">
+    <c-link
+      underline
+      href=" https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
+      target="_blank"
+    >
       See detailed instructions
       <c-icon :path="mdiOpenInNew" />
     </c-link>
     <c-data-table
       selectable
       hide-footer
-      no-data-text="There are no buckets in the seleted project"
+      no-data-text="There are no buckets in the selected project"
       :headers="headers"
       :data="tableData"
       @selection="handleSelect"
       selection-property="bucket"
       :key="tableKey"
+      :loading="loading"
     ></c-data-table>
     <div class="alert-wrapper">
       <c-alert v-if="selected.length" type="warning">
@@ -62,25 +66,45 @@
 import { computed, watch, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
 import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getReadableTime } from "../scripts/common";
-import { getBuckets } from "../scripts/openstack";
+import { getBuckets, getEC2Credentials } from "../scripts/openstack";
+import { S3Client, ListBucketsCommand } from "@aws-sdk/client-s3";
+import { NEW_VERSION_DATE } from "../scripts/config";
 
-const { project, scopedToken } = defineProps(["project", "scopedToken"]);
+const { project, scopedToken, s3address } = defineProps(["project", "scopedToken", "s3address"]);
 
 const emit = defineEmits(["select-buckets", "go-back"]);
 
 watch(
   () => scopedToken,
-  (newToken) => {
+  async (newToken) => {
     if (newToken) {
+      loading.value = true;
       console.log(`Using scoped token: ${newToken}`);
-      getBuckets(newToken).then((ret) => {
-        buckets.value = ret;
-        if (selected.value.length) {
-          selected.value = [];
-          // Remount table so that select event detail doesn't contain stale selection
-          tableKey.value++;
-        }
-      });
+      const ret = await getBuckets(newToken);
+      buckets.value = ret;
+      try {
+        const ec2 = await getEC2Credentials(newToken, project.id);
+        const client = new S3Client({
+          region: "us-east-1",
+          endpoint: s3address,
+          credentials: {
+            accessKeyId: ec2.access,
+            secretAccessKey: ec2.secret,
+          },
+        });
+        const resp = await client.send(new ListBucketsCommand());
+        const s3Buckets = resp?.Buckets || [];
+        // Create a bucket map to find new-version buckets
+        s3BucketMap.value = new Map(s3Buckets.map((bucket) => [bucket.Name, bucket.CreationDate]));
+      } catch (e) {
+        console.error("Failed to retrieve s3 buckets", e);
+      }
+      loading.value = false;
+      if (selected.value.length) {
+        selected.value = [];
+        // Remount table so that select event detail doesn't contain stale selection
+        tableKey.value++;
+      }
     }
   },
 );
@@ -107,8 +131,10 @@ function addToast(type, msg) {
 
 /** TABLE */
 const buckets = ref([]);
+const s3BucketMap = ref();
 const selected = ref([]);
 const tableKey = ref(0);
+const loading = ref(false);
 
 const headers = [
   { key: "name", align: "center", value: "Name", sortable: false },
@@ -122,6 +148,10 @@ const tableData = computed(() => {
       // enrich data with conversion needed status that will be passed on
       const num = getRecommendedAction(bucket);
       bucket.conversionNeed = num;
+      const createdDate = s3BucketMap.value?.get(bucket.name);
+      if (createdDate) {
+        bucket.created = Date.parse(createdDate);
+      }
       const status = getBucketStatus(bucket.conversionNeed);
       return {
         name: {
@@ -201,30 +231,30 @@ function getRecommendedAction(bucket) {
   }
   // If the bucket contains whitespace, it's guaranteed to break S3
   if (/[\s]/u.test(bucket.name)) {
-    return 5;
+    return 2;
   }
 
   // If the bucket doesn't have any bytes, but has content, it has likely
   // been filled with swift large objects
   if (!bucket.bytes && bucket.count) {
-    return 4;
+    return 1;
   }
 
   // If the bucket has a matching segemnts bucket with content, it likely
   // contains swift large objects
   if (buckets.value.find((nb) => nb.name == `${bucket.name}_segments`)?.count > 0) {
-    return 4;
+    return 1;
   }
 
   // If the bucket name is too long, it will likely have to be truncated
   if (bucket.name.length < 3 || bucket.name.length > 63) {
-    return 3;
+    return 1;
   }
 
   // If the bucket doesn't start with lowercase alphanumeric, it should
   // probably be migrated
   if (!isLowerCaseOrNum(bucket.name[0]) || !isLowerCaseOrNum(bucket.name[bucket.name.length - 1])) {
-    return 2;
+    return 1;
   }
 
   // If the bucket contains non-alphanumeric characters, it should probably
@@ -233,7 +263,12 @@ function getRecommendedAction(bucket) {
     return 1;
   }
 
-  return 0;
+  // No need to migrate buckets created with V3
+  if (bucket?.created > NEW_VERSION_DATE) {
+    return 0;
+  }
+  // Undetermined, migrate in case of sharing
+  return 1;
 }
 </script>
 <style scoped>

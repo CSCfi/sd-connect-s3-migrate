@@ -79,9 +79,11 @@ export function getReadableTime(seconds) {
  * @param {number} statusNum - recommended action number
  */
 export function getBucketStatus(statusNum) {
-  if (statusNum >= 5) {
+  if (statusNum === 2) {
     return { type: "error", value: "Urgent" };
   }
-  // For now cases when migration not needed is not considered
+  if (statusNum === 1) {
+    return { type: "warning", value: "By the end of 2026" };
+  }
   return null;
 }
