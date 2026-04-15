@@ -87,8 +87,6 @@ jobs:
           echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" > certificate.b64
           certutil -decode certificate.b64 "$RUNNER_TEMP/certificate.pfx"
           rm certificate.b64
-          openssl pkcs12 -info -in "$RUNNER_TEMP/certificate.pfx" -noout -passin pass:"${{ secrets.WINDOWS_CERT_PASSWORD }}"
-          echo "Certificate verified"
 
       - name: Build application
         env:
@@ -106,14 +104,11 @@ jobs:
       - name: Delete temporary certificate file
         if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
         run: |
-          rm "$RUNNER_TEMP/certificate.pfx"
+          rm -f "$RUNNER_TEMP/certificate.pfx"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: gui-build-${{ matrix.os }}
-          path: |
-            sd_connect_s3_migrate_gui/out/make/**
+      - name: Upload build artifacts using forge publish
+        run: |
+          npm run publish
 
       - name: Upload release assets
         id: upload-release-asset

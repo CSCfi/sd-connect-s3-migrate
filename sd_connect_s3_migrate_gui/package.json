@@ -1,7 +1,7 @@
 {
   "name": "sd_connect_s3_migrate_gui",
   "productName": "sd_connect_s3_migrate_gui",
-  "version": "1.0.0",
+  "version": "2026.4.14",
   "description": "SD Connect S3 Migration Utility",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -33,6 +33,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
+    "@electron-forge/publisher-github": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^5.2.4",

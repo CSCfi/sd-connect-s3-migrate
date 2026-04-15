@@ -44,6 +44,17 @@ module.exports = {
     //   }
     // }
   ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'CSCfi',
+          name: 'sd-connect-s3-migrate',
+        },
+        prerelease: true,
+      }
+    }  ],
   plugins: [
     {
       name: '@electron-forge/plugin-vite',
