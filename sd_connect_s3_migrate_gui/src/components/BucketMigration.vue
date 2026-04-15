@@ -57,7 +57,7 @@ import {
   UploadPartCopyCommand,
 } from "@aws-sdk/client-s3";
 
-import { SD_CONNECT_API_URL } from "../scripts/config";
+import { getSDConnectAPIEndpoint } from "../scripts/config";
 import { estimatedBytesPerSec, getReadableTime, migrationStages, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
@@ -211,7 +211,7 @@ async function migrateBucketHeaders(bucket) {
   // Simulate header migration if there's no SD Connect API URL
   // We're first testing just the object storage side of things, as it's preferable
   // to test header migration on dev before starting to migrate production headers
-  if (!SD_CONNECT_API_URL) {
+  if (!(await getSDConnectAPIEndpoint())) {
     console.log("No API URL provided, simulating header migration.");
 
     for (const object of bucket.objects) {
@@ -581,7 +581,7 @@ async function migrateBucketSharing(bucket) {
       policy.Statement.push(newStatement);
 
       // If the bucket name has changed, migrate the Vault side sharing for the current project
-      if (bucket.name !== convertBucketName(bucket.name) && SD_CONNECT_API_URL) {
+      if (bucket.name !== convertBucketName(bucket.name) && (await getSDConnectAPIEndpoint())) {
         // Retrieve the receiver project IDs
         const ids = await checkProjectIDs(receiver);
         console.log(`Got project IDs ${ids}`);

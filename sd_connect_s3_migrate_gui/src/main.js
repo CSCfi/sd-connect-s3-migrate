@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 
@@ -21,6 +21,11 @@ function UpsertKeyValue(obj, keyToChange, value) {
   // Insert at end instead
   obj[keyToChange] = value;
 }
+
+const devMode = !app.isPackaged;
+ipcMain.handle("get-devmode", () => {
+  return devMode;
+});
 
 const createWindow = () => {
   // Create the browser window.
@@ -64,7 +69,9 @@ const createWindow = () => {
   }
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 };
 
 // This method will be called when Electron has finished
