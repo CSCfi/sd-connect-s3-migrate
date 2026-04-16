@@ -1,6 +1,6 @@
 // Convenience functions for accessing SD Connect
 
-import { SD_CONNECT_API_URL } from "./config";
+import { getSDConnectAPIEndpoint } from "./config";
 
 /**
  * A signature for an SD Connect API request
@@ -70,7 +70,7 @@ async function _getProjectPublicKey(apiKey, projectName) {
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let keyUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
   keyUrl.searchParams.append("valid", signature.valid);
 
@@ -107,7 +107,7 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let keyUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
   keyUrl.searchParams.append("valid", signature.valid);
 
@@ -135,7 +135,7 @@ export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let keyUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
   keyUrl.searchParams.append("valid", signature.valid);
 
@@ -165,7 +165,7 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let keyUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
   keyUrl.searchParams.append("valid", signature.valid);
 
@@ -200,7 +200,7 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let keyUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let keyUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   keyUrl.searchParams.append("signature", signature.signature);
   keyUrl.searchParams.append("valid", signature.valid);
 
@@ -234,7 +234,7 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let sharingWhitelistUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let sharingWhitelistUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   sharingWhitelistUrl.searchParams.append("signature", signature.signature);
   sharingWhitelistUrl.searchParams.append("valid", signature.valid);
 
@@ -258,7 +258,7 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
  * @returns {Promise<IDs>} - the IDs of the requested project
  */
 export async function checkProjectIDs(projectName) {
-  let idUrl = new URL(`${SD_CONNECT_API_URL}/sharing/ids/${projectName}`);
+  let idUrl = new URL(`${await getSDConnectAPIEndpoint()}/sharing/ids/${projectName}`);
 
   let ids;
   try {
@@ -291,7 +291,7 @@ export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist
   const signature = await sign_api_request(apiKey, path);
 
   // Prepare the URL
-  let sharingWhitelistUrl = new URL(`${SD_CONNECT_API_URL}/runner${path}`);
+  let sharingWhitelistUrl = new URL(`${await getSDConnectAPIEndpoint()}/runner${path}`);
   sharingWhitelistUrl.searchParams.append("signature", signature.signature);
   sharingWhitelistUrl.searchParams.append("valid", signature.valid);
 

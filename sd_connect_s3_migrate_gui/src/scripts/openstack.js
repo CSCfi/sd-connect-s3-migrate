@@ -1,6 +1,7 @@
 // Convenience functions for accessing openstack
 
-const auth_endpoint = "https://pouta-test.csc.fi:5001";
+import { getOpenstackAuthEndpoint } from "./config";
+
 let object_storage_endpoint = "";
 let userId = "";
 
@@ -8,7 +9,7 @@ let userId = "";
 export async function loginWithUserpass(username, password) {
   let unscoped = "";
 
-  const resp = await fetch(new URL("/v3/auth/tokens", auth_endpoint), {
+  const resp = await fetch(new URL("/v3/auth/tokens", await getOpenstackAuthEndpoint()), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -57,7 +58,7 @@ export function getS3endpoint() {
 
 // Discover available projects from an unscoped token
 export async function discoverTokenProjects(token) {
-  const resp = await fetch(new URL("/v3/OS-FEDERATION/projects", auth_endpoint), {
+  const resp = await fetch(new URL("/v3/OS-FEDERATION/projects", await getOpenstackAuthEndpoint()), {
     method: "GET",
     headers: {
       "X-Auth-Token": token,
@@ -78,7 +79,7 @@ export async function discoverTokenProjects(token) {
 export async function getScopedToken(token, project) {
   let scoped = "";
 
-  const resp = await fetch(new URL("/v3/auth/tokens", auth_endpoint), {
+  const resp = await fetch(new URL("/v3/auth/tokens", await getOpenstackAuthEndpoint()), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -133,7 +134,7 @@ export async function getEC2Credentials(token, projectId) {
   let ec2;
 
   try {
-    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint), {
+    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, await getOpenstackAuthEndpoint()), {
       headers: {
         "X-Auth-Token": token,
       },
@@ -149,7 +150,7 @@ export async function getEC2Credentials(token, projectId) {
     console.log("Failed to retrieve EC2 credentials.");
     console.log("Trying to generate EC2 credentials.");
 
-    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, auth_endpoint), {
+    const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, await getOpenstackAuthEndpoint()), {
       method: "POST",
       headers: {
         "X-Auth-Token": token,

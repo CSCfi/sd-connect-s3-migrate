@@ -81,19 +81,7 @@ jobs:
           sudo snap install snapcraft --classic --channel 7.x/stable
           sudo snap install multipass --classic
 
-      - name: Create temporary certificate file
-        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
-        run: |
-          echo "${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}" > certificate.b64
-          certutil -decode certificate.b64 "$RUNNER_TEMP/certificate.pfx"
-          rm certificate.b64
-          openssl pkcs12 -info -in "$RUNNER_TEMP/certificate.pfx" -noout -passin pass:"${{ secrets.WINDOWS_CERT_PASSWORD }}"
-          echo "Certificate verified"
-
       - name: Build application
-        env:
-          WINDOWS_CERTIFICATE_FILE: ${{ runner.temp }}/certificate.pfx
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           if [ "${{ matrix.os }}" == "windows-2022" ] || [ ${{ matrix.os }} == "windows-11-arm" ]; then
             npm run make:win32
@@ -103,17 +91,9 @@ jobs:
             npm run make:linux
           fi
 
-      - name: Delete temporary certificate file
-        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+      - name: Upload build artifacts using forge publish
         run: |
-          rm "$RUNNER_TEMP/certificate.pfx"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: gui-build-${{ matrix.os }}
-          path: |
-            sd_connect_s3_migrate_gui/out/make/**
+          npm run publish
 
       - name: Upload release assets
         id: upload-release-asset

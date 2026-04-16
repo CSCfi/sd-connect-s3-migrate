@@ -1,4 +1,19 @@
-// Config variables for the applicatio
+// Config variables for the application
 
-export const SD_CONNECT_API_URL = "https://sd-connect.sdd.csc.fi";
+export async function getOpenstackAuthEndpoint() {
+  if (await window.appEnv.devMode()) {
+    return "https://pouta-test.csc.fi:5001";
+  } else {
+    return "https://pouta.csc.fi:5001";
+  }
+}
+
+export async function getSDConnectAPIEndpoint() {
+  if (await window.appEnv.devMode()) {
+    return "https://sd-connect.sdd.csc.fi";
+  } else {
+    return "https://sd-connect.sdqa.csc.fi";
+  }
+}
+
 export const NEW_VERSION_DATE = Date.parse("2026-05-01T00:00:00Z");

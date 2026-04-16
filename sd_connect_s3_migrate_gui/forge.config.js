@@ -10,9 +10,6 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        // certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
-        // certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
-        // signWithParams: '/tr http://timestamp.digicert.com /td sha256 /fd sha256',
         noMsi: true,
       },
     },
@@ -32,18 +29,18 @@ module.exports = {
       name: '@electron-forge/maker-zip',
       config: {},
     },
-    // Snap builds disabled due to issues with GitHub actions platform.
-    // {
-    //   name: '@electron-forge/maker-snap',
-    //   config: {
-    //     features: {
-    //       audio: false,
-    //       webgl: true,
-    //     },
-    //     summary: "Migration tool for moving from SD Connect v1/v2 to v3 bucket format",
-    //   }
-    // }
   ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'CSCfi',
+          name: 'sd-connect-s3-migrate',
+        },
+        prerelease: true,
+      }
+    }  ],
   plugins: [
     {
       name: '@electron-forge/plugin-vite',
