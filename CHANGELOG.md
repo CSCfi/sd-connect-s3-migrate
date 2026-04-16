@@ -7,10 +7,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.4.14] - 2026-04-16
+
 ### Added
 
 - (users) Added links to instructions in user docs (#43)
 - (users) Added end-of-year status to buckets
+
+### Changed
+
+- (users) packaged versions now point to SD Connect QA by default
+- GitHub build pipeline now uses `@electron-forge/publish-github` for built-in publish support (watch out for regressions, may revert if necessary)
+- dev mode application now points to SD Connect DEV by default
 
 ## [2026.4.13] - 2026-04-10
 
@@ -77,7 +85,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.13...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.14...HEAD
+[2026.4.14]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.13...2026.4.14
 [2026.4.13]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.12...2026.4.13
 [2026.4.12]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.11...2026.4.12
 [2026.4.11]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.10...2026.4.11
