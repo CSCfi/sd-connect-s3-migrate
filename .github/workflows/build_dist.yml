@@ -92,6 +92,8 @@ jobs:
           fi
 
       - name: Upload build artifacts using forge publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm run publish
 
