@@ -83,13 +83,7 @@ jobs:
 
       - name: Build application
         run: |
-          if [ "${{ matrix.os }}" == "windows-2022" ] || [ ${{ matrix.os }} == "windows-11-arm" ]; then
-            npm run make:win32
-          elif [ ${{ matrix.os }} == "macos-14" ]; then
-            npm run make:macos
-          else
-            npm run make:linux
-          fi
+          npm run make
 
       - name: Upload build artifacts using forge publish
         env:
