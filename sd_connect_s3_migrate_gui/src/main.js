@@ -36,6 +36,10 @@ const STATE_FILE_PATH = path.join(app.getPath("Documents"), "SD-Connect-S3-Migra
  * @param {MigrationState} state - the current state of the migration
  */
 async function saveMigrationStateHandler(_event, state) {
+  if (!app.isPackaged) {
+    console.log(`Main thread saving following state: ${state}`);
+  }
+
   await fs.mkdir(path.dirname(STATE_FILE_PATH), { recursive: true });
   await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
 }
@@ -47,7 +51,13 @@ async function saveMigrationStateHandler(_event, state) {
 async function loadMigrationStateHandler() {
   try {
     const data = await fs.readFile(STATE_FILE_PATH, "utf-8");
-    return JSON.parse(data);
+    const state = JSON.parse(data);
+
+    if (!app.isPackaged) {
+      console.log(`Main thread loaded following state: ${state}`);
+    }
+
+    return state;
   } catch {
     return null; // first run or file deleted by user
   }

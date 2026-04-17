@@ -1,3 +1,6 @@
+// Migration tool type definitions
+
+// Type definitions for state and progress tracking
 /**
  * @typedef {Object} MigrationObject
  * @property {string} key - The key of the object in object storage
@@ -40,4 +43,13 @@
  * @property {string} username - The migration user name
  * @property {string} apiToken - SD Connect API token
  * @property {OpenstackProject} project - the project being used for the migration
+ */
+
+// Type definitions for API results and communication
+/**
+ * @typedef {Object} OpenstackBucket
+ * @property {number} count - amount of objects in the bucket
+ * @property {number} bytes - total data stored in the bucket
+ * @property {string} name - the name of the bucket
+ * @property {string} last_modified - the date the bucket contents were last modified
  */

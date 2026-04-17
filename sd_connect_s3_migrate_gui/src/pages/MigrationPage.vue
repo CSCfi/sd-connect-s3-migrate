@@ -81,6 +81,17 @@ import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
 
+// Type imports
+/**
+ * @typedef {import { OpenstackProject } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import { OpenstackBucket } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import {MigrationBucketList } from "../scripts/types.js"}
+ */
+
 const step = ref(0);
 const selectRef = useTemplateRef("projectSelect");
 const tokenRef = useTemplateRef("tokenInput");
@@ -104,7 +115,11 @@ const selectedBuckets = ref([]);
 // Data gained from step 4
 const migratedBuckets = ref([]);
 
-// Handle the project discovery from unscoped token
+/**
+ * Handle the project discovery from unscoped token
+ * @param {string} unscoped - unscoped token of the user logging in
+ * @param {string} username - name of the user logging in
+ */
 async function handleProjectDiscovery(unscoped, username) {
   unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
@@ -120,7 +135,10 @@ async function handleProjectDiscovery(unscoped, username) {
   console.log(unscopedToken.value);
 }
 
-// Handle project selection
+/**
+ * Handle project selection
+ * @param {OpenstackProject} project - the project selected for scoping the token
+ */
 async function selectProjectAndScopeToken(project) {
   if (activeProject.value?.id !== project.id) {
     activeProject.value = project;
@@ -130,7 +148,10 @@ async function selectProjectAndScopeToken(project) {
   step.value += 1;
 }
 
-// Handle API token addition
+/**
+ * Handle API token addition
+ * @param {string} token - SD Connect API token to be added
+ */
 async function handleAddAPIToken(token) {
   apiToken.value = token;
   console.log(apiToken.value);
@@ -138,7 +159,10 @@ async function handleAddAPIToken(token) {
   step.value += 1;
 }
 
-// Handle migrate bucket selection
+/**
+ * Handle migrate bucket selection
+ * @param {OpenstackBucket[]} buckets - buckets that are to be migrated
+ */
 async function handleSelectBuckets(buckets) {
   console.log(buckets);
   selectedBuckets.value = buckets;
@@ -146,7 +170,10 @@ async function handleSelectBuckets(buckets) {
   step.value += 1;
 }
 
-// Handle migrated buckets
+/**
+ * Handle migrated buckets
+ * @param {MigrationBucketList} buckets - buckets that were migrated
+ */
 async function handleBucketsMigrated(buckets) {
   migratedBuckets.value = buckets;
   console.log(migratedBuckets.value);
@@ -154,10 +181,16 @@ async function handleBucketsMigrated(buckets) {
   step.value += 1;
 }
 
+/**
+ * Navigate back to the previous step
+ */
 function goBack() {
   step.value--;
 }
 
+/**
+ * Reset conversion UI state tracking values to start
+ */
 function startNewConversion() {
   step.value = 1;
   // reset values

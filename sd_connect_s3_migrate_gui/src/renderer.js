@@ -35,8 +35,6 @@ import { vControl } from "@cscfi/csc-ui-vue";
 
 import MigrationPage from "./pages/MigrationPage.vue";
 
-console.log('👋 This message is being logged by "renderer.js", included via Vite');
-
 const app = createApp(MigrationPage);
 
 app.directive("control", vControl);
