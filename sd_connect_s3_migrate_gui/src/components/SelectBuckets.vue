@@ -12,7 +12,7 @@
     </p>
     <c-link
       underline
-      href=" https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
+      href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
       target="_blank"
     >
       See detailed instructions
@@ -35,7 +35,11 @@
           <b>Estimated conversion time:</b>
           {{ getReadableTime(estimatedTime) }}
         </span>
-        <c-link underline href="#" target="_blank">
+        <c-link
+          underline
+          href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
+          target="_blank"
+        >
           See detailed instructions
           <c-icon :path="mdiOpenInNew" />
         </c-link>
@@ -48,7 +52,11 @@
           {{ getReadableSize(quotaNeeded) }}
         </span>
         Please check that your project has enough storage quota to proceed with the conversion from my.csc.fi.
-        <c-link underline href="#" target="_blank">
+        <c-link
+          underline
+          href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
+          target="_blank"
+        >
           See detailed instructions
           <c-icon :path="mdiOpenInNew" />
         </c-link>
