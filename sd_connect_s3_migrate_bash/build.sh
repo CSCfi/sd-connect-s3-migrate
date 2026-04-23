@@ -7,6 +7,7 @@ set -euo pipefail
 APP_NAME="${APP_NAME:-sd-connect-migrate-project}"
 SRC_SCRIPT="${SRC_SCRIPT:-migrate_project_bash_src/migrate_project.sh}"
 OUT_NAME="${OUT_NAME:-${APP_NAME}}"
+OUT_METADATA="${OUT_METADATA:+-$OUT_METADATA}"
 
 # Python major.minor to target
 PYTHON_MAJMIN="${PYTHON_MAJMIN:-3.12}"
@@ -257,8 +258,8 @@ package_appimage() {
 
   echo "==> Building AppImage..."
 
-  # AppImage naming convention: <name>-<arch>.AppImage
-  local OUT="${OUT_NAME}-${ARCH}.AppImage"
+  # AppImage naming convention: <name>-<arch>-<metadata>.AppImage
+  local OUT="${OUT_NAME}-${ARCH}${OUT_METADATA}.AppImage"
 
   # Some environments lack FUSE; use extract-and-run
   export APPIMAGE_EXTRACT_AND_RUN=1
