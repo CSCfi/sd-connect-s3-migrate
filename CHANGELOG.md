@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- (users) Add forgotten links to docs (#63)
+
 ## [2026.4.17] - 2026-04-17
 
 ### Removed
