@@ -39,6 +39,18 @@ lint-format-gui:
     npm install
     npm run lint-format
 
+update-versions-dryrun:
+  extends: .update-versions-dryrun
+  variables:
+    UPDATE_VERSION_FILES_LIST: "sd_connect_s3_migrate_gui/package.json"
+    VERSION_UPDATE_INDICATOR: "version"
+
+update-versions:
+  extends: .update-versions
+  variables:
+    UPDATE_VERSION_FILES_LIST: "sd_connect_s3_migrate_gui/package.json"
+    VERSION_UPDATE_INDICATOR: "version"
+
 release-job:
   extends: .automated-release
   release:
