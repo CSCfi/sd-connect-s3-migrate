@@ -7,7 +7,7 @@
     <div id="separator"></div>
     <!-- Main contents for the application -->
     <div id="login-card" v-if="step == 0">
-      <Login @login-successful="handleProjectDiscovery" />
+      <Login :user="user" @login-successful="handleProjectDiscovery" />
     </div>
 
     <div id="steps-wrapper" v-else>
@@ -39,12 +39,21 @@
 
       <div id="migration-card" v-if="step == 4">
         <Migration
+          v-if="!migrationInterrupted"
           @buckets-migrated="handleBucketsMigrated"
+          @api-key-error="handleMigrationInterrupt"
           :sdApiToken="apiToken"
           :buckets="selectedBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"
           :s3address="getS3endpoint()"
+        />
+        <ResumeMigration
+          v-else
+          @got-token="handleReaddAPIToken"
+          @cancel-migration="handleCancelMigration"
+          :project="activeProject"
+          :buckets="selectedBuckets"
         />
       </div>
 
@@ -68,16 +77,18 @@ import Token from "../components/APITokenForm.vue";
 import Select from "../components/ProjectSelection.vue";
 import SelectBuckets from "../components/SelectBuckets.vue";
 import Migration from "../components/BucketMigration.vue";
+import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
 
 const step = ref(0);
 const selectRef = useTemplateRef("projectSelect");
 const tokenRef = useTemplateRef("tokenInput");
+const migrationInterrupted = ref(false);
 
 // Data gained from login
-let user = "";
-let unscopedToken = "";
+let user = ref("");
+let unscopedToken = ref("");
 const projects = ref([]);
 
 // Data gained from step 1
@@ -95,21 +106,25 @@ const migratedBuckets = ref([]);
 
 // Handle the project discovery from unscoped token
 async function handleProjectDiscovery(unscoped, username) {
-  unscopedToken = unscoped;
-  user = username;
+  unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
 
-  console.log(user);
-  console.log(unscopedToken);
+  if (migrationInterrupted.value) {
+    step.value = 4;
+  } else {
+    step.value += 1;
+  }
 
-  step.value += 1;
+  user.value = username;
+  console.log(user.value);
+  console.log(unscopedToken.value);
 }
 
 // Handle project selection
 async function selectProjectAndScopeToken(project) {
   if (activeProject.value?.id !== project.id) {
     activeProject.value = project;
-    scopedToken.value = await getScopedToken(unscopedToken, project.id);
+    scopedToken.value = await getScopedToken(unscopedToken.value, project.id);
     console.log(scopedToken.value);
   }
   step.value += 1;
@@ -153,6 +168,24 @@ function startNewConversion() {
   scopedToken.value = "";
   selectedBuckets.value = [];
   migratedBuckets.value = [];
+}
+
+function handleMigrationInterrupt() {
+  migrationInterrupted.value = true;
+  apiToken.value = "";
+  // TODO retrieve user, project, migration state
+  // Set vars accordingly
+  step.value = 0;
+}
+
+function handleReaddAPIToken(token) {
+  apiToken.value = token;
+  migrationInterrupted.value = false;
+}
+function handleCancelMigration() {
+  //TODO cleanup
+  console.log("Migration cancelled");
+  startNewConversion();
 }
 </script>
 

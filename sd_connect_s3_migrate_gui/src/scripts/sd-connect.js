@@ -76,6 +76,11 @@ async function _getProjectPublicKey(apiKey, projectName) {
 
   try {
     const keyResp = await fetch(keyUrl);
+    if (!keyResp.ok) {
+      const error = new Error("HTTP error");
+      error.status = keyResp.status;
+      throw error;
+    }
     const keyBase64 = await keyResp.text();
     const key = Uint8Array.fromBase64(keyBase64);
     return key;
@@ -112,10 +117,15 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
   keyUrl.searchParams.append("valid", signature.valid);
 
   try {
-    await fetch(keyUrl, {
+    const resp = await fetch(keyUrl, {
       method: "PUT",
       body: projectKey,
     });
+    if (!resp.ok) {
+      const error = new Error("HTTP error");
+      error.status = resp.status;
+      throw error;
+    }
   } catch (e) {
     console.log("Failed to add the project public key to re-encryption whitelist.");
     console.log(e);
@@ -140,9 +150,14 @@ export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
   keyUrl.searchParams.append("valid", signature.valid);
 
   try {
-    await fetch(keyUrl, {
+    const resp = await fetch(keyUrl, {
       method: "DELETE",
     });
+    if (!resp.ok) {
+      const error = new Error("HTTP error");
+      error.status = resp.status;
+      throw error;
+    }
   } catch (e) {
     console.log("Failed to delete the project public key from re-encryption whitelist.");
     console.log(e);
@@ -171,6 +186,11 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
 
   try {
     const headerResp = await fetch(keyUrl);
+    if (!headerResp.ok) {
+      const error = new Error("HTTP error");
+      error.status = headerResp.status;
+      throw error;
+    }
     const encHeader = await headerResp.text();
     const header = Uint8Array.fromBase64(encHeader);
     if (header.length > 0) {
@@ -210,7 +230,11 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
       body: header,
     });
     if (headerResp.status != 204) {
-      throw new Error("Failed to add a new header.");
+      console.log("Failed to add a new header.");
+
+      const error = new Error("HTTP error");
+      error.status = headerResp.status;
+      throw error;
     }
   } catch (e) {
     console.log("Failed to put header for the file.");
@@ -240,6 +264,11 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
 
   try {
     const whitelistResp = await fetch(sharingWhitelistUrl);
+    if (!whitelistResp.ok) {
+      const error = new Error("HTTP error");
+      error.status = whitelistResp.status;
+      throw error;
+    }
     whitelist = await whitelistResp.json();
   } catch (e) {
     console.log("Failed to retrieve bucket sharing whitelist");
@@ -296,10 +325,15 @@ export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist
   sharingWhitelistUrl.searchParams.append("valid", signature.valid);
 
   try {
-    await fetch(sharingWhitelistUrl, {
+    const resp = await fetch(sharingWhitelistUrl, {
       method: "PUT",
       body: JSON.stringify(whitelist),
     });
+    if (!resp.ok) {
+      const error = new Error("HTTP error");
+      error.status = resp.status;
+      throw error;
+    }
   } catch (e) {
     console.log("Failed to put bucket sharing whitelist.");
     console.log(e);

@@ -2,7 +2,7 @@
   <div>
     <p>
       <b>Project:</b>
-      {{ project?.name }} {{ project?.description }}
+      {{ project?.name }}
     </p>
     <h1>Conversion in process</h1>
     <p>
@@ -88,7 +88,7 @@ const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
   "sdApiToken",
 ]);
 
-const emit = defineEmits(["buckets-migrated"]);
+const emit = defineEmits(["buckets-migrated", "api-key-error"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -229,6 +229,7 @@ async function migrateBucketHeaders(bucket) {
   try {
     await addProjectKeyToWhitelist(sdApiToken, project.name);
   } catch (e) {
+    checkError(e);
     console.log("Could not add the project key to the whitelist.");
     console.log(e);
     console.log("Aborting bucket header migration.");
@@ -245,6 +246,7 @@ async function migrateBucketHeaders(bucket) {
     try {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
+      checkError(e);
       console.log("Failed to retrieve header for object, continuing...");
       console.log(e);
       // TODO: add proper error handling for header issues
@@ -254,6 +256,7 @@ async function migrateBucketHeaders(bucket) {
     try {
       await putFileHeader(sdApiToken, project.name, convertBucketName(bucket.name), object.key, header);
     } catch (e) {
+      checkError(e);
       console.log("Failed to add the header for object, continuing...");
       console.log(e);
       // TODO: add proper error handling for header issues
@@ -269,6 +272,7 @@ async function migrateBucketHeaders(bucket) {
   try {
     await removeProjectKeyFromWhitelist(sdApiToken, project.name);
   } catch (e) {
+    checkError(e);
     console.log("Failed to remove project key from the whitelist after migrating bucket.");
     console.log(e);
     return;
@@ -589,8 +593,13 @@ async function migrateBucketSharing(bucket) {
           console.log(`No project id cache for project ${receiver}, skipping`);
           continue;
         }
-
-        let oldSharingWhitelist = await checkSharingWhitelist(sdApiToken, project.name, bucket.name, ids.name);
+        let oldSharingWhitelist;
+        try {
+          oldSharingWhitelist = await checkSharingWhitelist(sdApiToken, project.name, bucket.name, ids.name);
+        } catch (e) {
+          checkError(e);
+          console.log(`Error retrieving sharing whitelist for bucket ${bucket.name}:`);
+        }
         console.log(`Got sharing whitelist for bucket ${bucket.name}:`);
         console.log(oldSharingWhitelist?.data);
 
@@ -606,6 +615,7 @@ async function migrateBucketSharing(bucket) {
         try {
           await putSharingWhitelist(sdApiToken, project.name, convertBucketName(bucket.name), [ids]);
         } catch (e) {
+          checkError(e);
           console.log("Failed to add project sharing whitelist.");
           console.log(e);
         }
@@ -754,6 +764,14 @@ async function beginMigration() {
 
   // Emit the migrate process state after finalize
   emit("buckets-migrated", migrateBuckets.value);
+}
+
+function checkError(error) {
+  // If Unauthorized, signal to relogin and prompt for new API token
+  if (error?.status === 401 || error?.cause?.status === 401) {
+    emit("api-key-error");
+    throw new Error("Migration interrupted due to expired or invalid API key.");
+  }
 }
 </script>
 <style scoped>
