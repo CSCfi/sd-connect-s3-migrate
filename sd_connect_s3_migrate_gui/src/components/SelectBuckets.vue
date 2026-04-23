@@ -237,8 +237,8 @@ function getRecommendedAction(bucket) {
   function isLowerCaseOrNum(char) {
     return /[\p{L}0-9]/u.test(char) && char === char.toLowerCase();
   }
-  // If the bucket contains whitespace, it's guaranteed to break S3
-  if (/[\s]/u.test(bucket.name)) {
+  // If the bucket contains whitespace or non-Latin letters, it's guaranteed to break S3
+  if (!/^[a-zA-Z0-9_.-]+$/.test(bucket.name)) {
     return 2;
   }
 
