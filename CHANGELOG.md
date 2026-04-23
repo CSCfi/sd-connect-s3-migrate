@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Fix buckets with non-Latin letters in bucket name not tagged as urgent (#57)
 - (users) Add forgotten links to docs (#63)
 
 ## [2026.4.17] - 2026-04-17
