@@ -28,7 +28,7 @@
     <div>
       <p>
         <b>Estimated conversion time:</b>
-        {{ getReadableTime(0) }}
+        {{ getTimeEstimate(0) }}
       </p>
     </div>
     <MigrationBucketTable :buckets="buckets" />
@@ -54,7 +54,7 @@
 
 <script setup>
 import { ref } from "vue";
-import { getReadableTime } from "../scripts/common";
+import { getTimeEstimate } from "../scripts/common";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
 

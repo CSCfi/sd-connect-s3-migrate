@@ -42,36 +42,22 @@ export function getReadableSize(val) {
 }
 
 /**
- * Get a human readable time in format x days x hours x minutes
+ * Get a human readable time estimate as "approximately x hours/days"
  * @param {number} seconds - seconds to parse
  */
-export function getReadableTime(seconds) {
+export function getTimeEstimate(seconds) {
   const minSec = 60;
   const hourSec = 60 * minSec;
   const daySec = 24 * hourSec;
-  const monthSec = 30 * daySec;
 
-  if (seconds < minSec) return "less than 1 minute";
-  if (seconds >= monthSec) return "more than a month";
+  if (seconds < minSec) return "couple of minutes";
 
-  let time = "";
-  let spans = [
-    { unit: "day", sec: daySec },
-    { unit: "hour", sec: hourSec },
-    { unit: "minute", sec: minSec },
-  ];
-  let secondsLeft = seconds;
-
-  spans.forEach((span, i) => {
-    // ceiling-round last unit not to be too optimistic
-    const val = i === spans.length - 1 ? Math.ceil(secondsLeft / span.sec) : Math.floor(secondsLeft / span.sec);
-    if (val) {
-      time = time.concat(`${val} ${span.unit}${val > 1 ? "s" : ""} `);
-      secondsLeft -= span.sec * val;
-    }
-  });
-
-  return time;
+  if (seconds > hourSec * 18) {
+    let val = Math.ceil((seconds - hourSec * 6) / daySec);
+    return "approximately " + val + " day" + (val > 1 ? "s" : "");
+  }
+  let val = Math.ceil(seconds / hourSec);
+  return "approximately " + val + " hour" + (val > 1 ? "s" : "");
 }
 
 /**
