@@ -74,7 +74,6 @@
 
 <script setup>
 import { ref, useTemplateRef, toRaw, onMounted } from "vue";
-import { throttle } from "lodash";
 
 // Component imports
 import Login from "../components/LoginForm.vue";
@@ -128,7 +127,9 @@ const migratedBuckets = ref([]);
 
 onMounted(() => {
   // Attempt loading the possible previous migration state
-  loadMigrationState().then(() => {console.log("Scheduled loading interrupted migration.")});
+  loadMigrationState().then(() => {
+    console.log("Scheduled loading interrupted migration.");
+  });
 });
 
 /**
@@ -221,7 +222,7 @@ async function selectProjectAndScopeToken(project) {
 async function handleAddAPIToken(token) {
   apiToken.value = token;
   console.log(apiToken.value);
-  
+
   step.value += 1;
 }
 

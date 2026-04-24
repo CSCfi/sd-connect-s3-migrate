@@ -89,11 +89,7 @@ const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets 
   "oldMigrateBuckets",
 ]);
 
-const emit = defineEmits([
-  "buckets-migrated",
-  "update-migration-state",
-  "api-key-error",
-]);
+const emit = defineEmits(["buckets-migrated", "update-migration-state", "api-key-error"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -141,7 +137,7 @@ onMounted(() => {
   } else {
     for (const bucket of buckets) {
       totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
-  
+
       migrateBuckets.value.push({
         name: bucket.name,
         totalObjects: bucket.count,

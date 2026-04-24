@@ -45,7 +45,7 @@ async function finishMigrationStateCallback() {
 }
 
 contextBridge.exposeInMainWorld("appEnv", {
-    devMode: () => ipcRenderer.invoke("get-devmode"),
+  devMode: () => ipcRenderer.invoke("get-devmode"),
 });
 
 contextBridge.exposeInMainWorld("stateAPI", {

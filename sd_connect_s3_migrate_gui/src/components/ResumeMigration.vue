@@ -6,8 +6,8 @@
     </p>
     <h1>Data conversion was interrupted</h1>
     <p v-if="continuedMigration">
-      Data conversion was interrupted due to the migration tool getting closed. Click continue
-      if you want to continue the migration process.
+      Data conversion was interrupted due to the migration tool getting closed. Click continue if you want to continue
+      the migration process.
     </p>
     <p v-else>
       Data conversion was interrupted due to an expired or invalid API key. Please continue conversion by creating a new
@@ -90,11 +90,7 @@ import { getTimeEstimate } from "../scripts/common";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
 
-const { buckets, project, continuedMigration } = defineProps([
-  "buckets",
-  "project",
-  "continuedMigration",
-]);
+const { buckets, project, continuedMigration } = defineProps(["buckets", "project", "continuedMigration"]);
 const emit = defineEmits(["got-token", "cancel-migration", "continue-migration"]);
 
 const apiToken = ref("");

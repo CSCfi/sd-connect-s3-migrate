@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, toRaw } from "vue";
+import { ref } from "vue";
 import { loginWithUserpass } from "../scripts/openstack";
 const { user } = defineProps(["user"]);
 
@@ -49,7 +49,7 @@ let loginFailed = ref(false);
 const emit = defineEmits(["login-successful"]);
 
 async function allasLogin() {
-  let useUsername = "";
+  let useUsername;
   if (user) {
     useUsername = user;
   } else {
