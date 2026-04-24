@@ -2,7 +2,7 @@
   <div class="step-content">
     <p>
       <b>Project:</b>
-      {{ project?.name }} {{ project?.description }}
+      {{ project?.name }}
     </p>
     <h1>Data conversion is complete</h1>
     <div v-if="showDeleteAlert">

@@ -2,10 +2,10 @@
   <div>
     <p>
       <b>Project:</b>
-      {{ project?.name }} {{ project?.description }}
+      {{ project?.name }}
     </p>
     <h1>Add temporary API key</h1>
-    <p>Create your API key via SD Connect user interface. Navigate to Support -> Create API key.</p>
+    <p>Create your API key via SD Connect user interface. Navigate to Support -> Create API keys.</p>
     <c-link
       underline
       href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#33-add-projects-temporary-api-key"

@@ -2,7 +2,7 @@
   <div>
     <p>
       <b>Project:</b>
-      {{ project?.name }} {{ project?.description }}
+      {{ project?.name }}
     </p>
     <h1>Select buckets to convert</h1>
     <p>
