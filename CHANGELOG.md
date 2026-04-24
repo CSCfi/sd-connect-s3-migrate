@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.4.19] - 2026-04-24
+
+### Fixed
+
+- wrong path in legacy build github action
+
+### Added
+
+- automatic version bumping on release
+
 ## [2026.4.18] - 2026-04-24
 
 ### Fixed
@@ -115,7 +125,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.18...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.19...HEAD
+[2026.4.19]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.18...2026.4.19
 [2026.4.18]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.17...2026.4.18
 [2026.4.17]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.16...2026.4.17
 [2026.4.16]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.15...2026.4.16
