@@ -7,10 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.4.18] - 2026-04-24
+
 ### Fixed
 
+- added missing version tag to cli build pipeline
 - Fix buckets with non-Latin letters in bucket name not tagged as urgent (#57)
 - (users) Add forgotten links to docs (#63)
+
+### Added
+
+- cli legacy appimage build pipeline
 
 ## [2026.4.17] - 2026-04-17
 
@@ -108,7 +115,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.17...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.18...HEAD
+[2026.4.18]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.17...2026.4.18
 [2026.4.17]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.16...2026.4.17
 [2026.4.16]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.15...2026.4.16
 [2026.4.15]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.14...2026.4.15
