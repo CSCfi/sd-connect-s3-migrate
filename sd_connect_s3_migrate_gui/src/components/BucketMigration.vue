@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, toRaw } from "vue";
 
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
@@ -88,7 +88,11 @@ const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
   "sdApiToken",
 ]);
 
-const emit = defineEmits(["buckets-migrated", "api-key-error"]);
+const emit = defineEmits([
+  "buckets-migrated",
+  "update-migration-state",
+  "api-key-error",
+]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -266,6 +270,8 @@ async function migrateBucketHeaders(bucket) {
 
     bucket.totalHeadersDone++;
     object.headerDone = true;
+
+    emit("update-migration-state", toRaw(migrateBuckets.value));
   }
 
   // Unlist the project public key
@@ -532,6 +538,8 @@ async function migrateBucketObjects(bucket) {
     }
 
     bucket.totalObjectsDone++;
+
+    emit("update-migration-state", toRaw(migrateBuckets.value));
   }
 }
 
@@ -649,6 +657,8 @@ async function migrateBucketSharing(bucket) {
 
   // Mark sharing as migrated
   bucket.sharingMigrated = true;
+
+  emit("update-migration-state", toRaw(migrateBuckets.value));
 }
 
 /**
@@ -716,7 +726,12 @@ async function beginMigration() {
     } catch {
       continue;
     }
+  }
 
+  // Cache the current state of the buckets
+  emit("update-migration-state", toRaw(migrateBuckets.value));
+
+  for (const bucket of migrateBuckets.value) {
     // Ensure that the bucket exists
     try {
       await createNewBucket(bucket.name);

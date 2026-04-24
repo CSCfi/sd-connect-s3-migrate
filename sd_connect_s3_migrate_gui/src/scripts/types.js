@@ -38,7 +38,7 @@
 
 /**
  * @typedef {Object} MigrationState
- * @property {MigrationBucketList} - List of the buckets being migrated
+ * @property {MigrationBucketList} buckets - List of the buckets being migrated
  * @property {string} timestamp - Migration start date
  * @property {string} username - The migration user name
  * @property {string} apiToken - SD Connect API token

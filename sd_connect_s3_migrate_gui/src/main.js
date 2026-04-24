@@ -28,7 +28,7 @@ function UpsertKeyValue(obj, keyToChange, value) {
 }
 
 // Resumable migration process logic
-const STATE_FILE_PATH = path.join(app.getPath("Documents"), "SD-Connect-S3-Migrate", "migration-state.json");
+const STATE_FILE_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate", "migration-state.json");
 
 /**
  * Handle the migration state save event
@@ -40,8 +40,13 @@ async function saveMigrationStateHandler(_event, state) {
     console.log(`Main thread saving following state: ${state}`);
   }
 
-  await fs.mkdir(path.dirname(STATE_FILE_PATH), { recursive: true });
-  await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
+  try {
+    await fs.mkdir(path.dirname(STATE_FILE_PATH), { recursive: true });
+    await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
+  } catch (e) {
+    console.log("Failed to save the migration state.");
+    console.log(e);
+  }
 }
 
 /**
@@ -71,8 +76,26 @@ async function clearMigrationStateHandler() {
     const t = new Date();
     // Rename the existing state if it exists when the user cancels the resume.
     // We'll keep the old versions with a date stamp attached.
-    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${t.getISOString()}.json`);
-  } catch {
+    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${t.toISOString()}.json`);
+  } catch (e) {
+    console.log("Failed to clear migration state.");
+    console.log(e);
+    return;
+  }
+}
+
+/**
+ * Handle the migration state finish event
+ */
+async function finishMigrationStateHandler() {
+  try {
+    // Rename the current state once the migration is finished.
+    // We'll keep the old versions with a date stamp attached.
+    const t = new Date();
+    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-finished-${t.toISOString()}.json`);
+  } catch (e) {
+    console.log("Failed to rename finished migration state.");
+    console.log(e);
     return;
   }
 }
@@ -80,6 +103,7 @@ async function clearMigrationStateHandler() {
 ipcMain.handle("save-migration-state", saveMigrationStateHandler);
 ipcMain.handle("load-migration-state", loadMigrationStateHandler);
 ipcMain.handle("clear-migration-state", clearMigrationStateHandler);
+ipcMain.handle("finish-migration-state", finishMigrationStateHandler);
 
 // Expose development mode on the rendered process
 const devMode = !app.isPackaged;
@@ -96,7 +120,6 @@ const createWindow = () => {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
       enableRemoteModule: true,
-      contextIsolation: false,
       nodeIntegrationInWorker: true,
       nodeIntegrationInSubFrames: true,
       webSecurity: false,

@@ -42,6 +42,7 @@
           v-if="!migrationInterrupted"
           @buckets-migrated="handleBucketsMigrated"
           @api-key-error="handleMigrationInterrupt"
+          @update-migration-state="saveMigrationState"
           :sdApiToken="apiToken"
           :buckets="selectedBuckets"
           :scopedToken="scopedToken"
@@ -69,7 +70,8 @@
 </template>
 
 <script setup>
-import { ref, useTemplateRef } from "vue";
+import { ref, useTemplateRef, toRaw } from "vue";
+import { throttle } from "lodash";
 
 // Component imports
 import Login from "../components/LoginForm.vue";
@@ -89,7 +91,10 @@ import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts
  * @typedef {import { OpenstackBucket } from "../scripts/types.js"}
  */
 /**
- * @typedef {import {MigrationBucketList } from "../scripts/types.js"}
+ * @typedef {import { MigrationBucketList } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import { MigrationState } from "../scripts/types.js"}
  */
 
 const step = ref(0);
@@ -103,7 +108,7 @@ let unscopedToken = ref("");
 const projects = ref([]);
 
 // Data gained from step 1
-const activeProject = ref(null);
+const activeProject = ref({});
 const scopedToken = ref("");
 
 // Data gained from step 2
@@ -114,6 +119,29 @@ const selectedBuckets = ref([]);
 
 // Data gained from step 4
 const migratedBuckets = ref([]);
+
+/**
+ * Save the migration state to default location
+ * @param {MigrationBucketList} buckets - the list of buckets as the current migration state
+ */
+async function saveMigrationState(buckets) {
+  // The migration bucket list is missing part of the migration state
+  console.log("Migration state save called.");
+
+  const migrationState = {
+    username: user,
+    apiToken: toRaw(apiToken.value),
+    timestamp: Math.floor(Date.now() / 1000),
+    project: toRaw(activeProject.value),
+    buckets: buckets,
+  };
+
+  console.log("Saving migration state:");
+  console.log(migrationState);
+  await window.stateAPI.saveState(migrationState);
+
+  return;
+}
 
 /**
  * Handle the project discovery from unscoped token
@@ -133,6 +161,11 @@ async function handleProjectDiscovery(unscoped, username) {
   user.value = username;
   console.log(user.value);
   console.log(unscopedToken.value);
+
+  // Save migration state after adding the user
+  saveMigrationState({}).then("Migration state saved.");
+
+  step.value += 1;
 }
 
 /**
@@ -145,6 +178,10 @@ async function selectProjectAndScopeToken(project) {
     scopedToken.value = await getScopedToken(unscopedToken.value, project.id);
     console.log(scopedToken.value);
   }
+
+  // Save migration state after selecting the project
+  saveMigrationState({}).then("Migration state saved.");
+
   step.value += 1;
 }
 
@@ -156,6 +193,9 @@ async function handleAddAPIToken(token) {
   apiToken.value = token;
   console.log(apiToken.value);
 
+  // Save migration state after adding the API token
+  saveMigrationState({}).then("Migration state saved.");
+  
   step.value += 1;
 }
 
@@ -177,6 +217,10 @@ async function handleSelectBuckets(buckets) {
 async function handleBucketsMigrated(buckets) {
   migratedBuckets.value = buckets;
   console.log(migratedBuckets.value);
+
+  // Clear the migration state
+  await saveMigrationState(toRaw(buckets));
+  await window.stateAPI.finishState();
 
   step.value += 1;
 }
