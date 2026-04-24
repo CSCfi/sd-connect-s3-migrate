@@ -108,17 +108,17 @@ let unscopedToken = ref("");
 const projects = ref([]);
 
 // Data gained from step 1
-const activeProject = ref({});
-const scopedToken = ref("");
+let activeProject = ref({});
+let scopedToken = ref("");
 
-// Data gained from step 2
-const apiToken = ref("");
+// let gained from step 2
+let apiToken = ref("");
 
 // Data gained from step 3
-const selectedBuckets = ref([]);
+let selectedBuckets = ref([]);
 
 // Data gained from step 4
-const migratedBuckets = ref([]);
+let migratedBuckets = ref([]);
 
 /**
  * Save the migration state to default location
@@ -141,6 +141,21 @@ async function saveMigrationState(buckets) {
   await window.stateAPI.saveState(migrationState);
 
   return;
+}
+
+/**
+ * Load the interrupted migration state if it exists
+ * @returns { (MigrationState | null) } - The state of the interrupted migration
+ */
+async function loadMigrationState() {
+  console.log("Loading migration state from default location.");
+
+  const migrationState = await window.stateAPI.loadState();
+
+  if (migrationState !== null) {
+    console.log("Found interrupted migration process. Continuing migration.");
+    console.log(migrationState);
+  }
 }
 
 /**

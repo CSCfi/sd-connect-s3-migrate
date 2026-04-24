@@ -19,7 +19,7 @@ async function saveMigrationStateCallback(state) {
 
 /**
  * Load the migration state via IPC in the main node thread.
- * @returns {Promise<MigrationState>} - the loaded migration state
+ * @returns {Promise<(MigrationState | null)>} - the loaded migration state
  */
 async function loadMigrationStateCallback() {
   console.log("Invoking migration state load in main process.");
