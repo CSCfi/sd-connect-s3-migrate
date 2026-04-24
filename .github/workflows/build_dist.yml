@@ -131,6 +131,7 @@ jobs:
 
       - name: Build application
         run: |
+          export OUT_METADATA="${{ github.ref_name }}"
           ./build.sh
 
       - name: Upload build artifacts
@@ -144,6 +145,35 @@ jobs:
         id: upload-release-asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: sd_connect_s3_migrate_bash/*.AppImage
+          fail_on_unmatched_files: true
+
+  build-legacy-appimage:
+    name: "Build legacy appimage"
+    needs: "create-release"
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./sd_connect_s3_migrate_bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build builder
+        run: |
+          docker build -f Dockerfile-build -t migration-bash-legacy-build .
+
+      - name: Run builder
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/src -e OUT_METADATA="glibc2-30-${{ github.ref_name }}" migration-bash-legacy-build
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
         with:
           files: sd_connect_s3_migrate_bash/*.AppImage
           fail_on_unmatched_files: true
