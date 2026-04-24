@@ -45,6 +45,7 @@
           @update-migration-state="saveMigrationState"
           :sdApiToken="apiToken"
           :buckets="selectedBuckets"
+          :oldMigrateBuckets="oldMigrateBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"
           :s3address="getS3endpoint()"
@@ -53,6 +54,7 @@
           v-else
           @got-token="handleReaddAPIToken"
           @cancel-migration="handleCancelMigration"
+          :continuedMigration="continueMigration"
           :project="activeProject"
           :buckets="selectedBuckets"
         />
@@ -70,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, useTemplateRef, toRaw } from "vue";
+import { ref, useTemplateRef, toRaw, onMounted } from "vue";
 import { throttle } from "lodash";
 
 // Component imports
@@ -101,24 +103,32 @@ const step = ref(0);
 const selectRef = useTemplateRef("projectSelect");
 const tokenRef = useTemplateRef("tokenInput");
 const migrationInterrupted = ref(false);
+const continueMigration = ref(false);
+
+const oldMigrateBuckets = ref([]);
 
 // Data gained from login
-let user = ref("");
-let unscopedToken = ref("");
+const user = ref("");
+const unscopedToken = ref("");
 const projects = ref([]);
 
 // Data gained from step 1
-let activeProject = ref({});
-let scopedToken = ref("");
+const activeProject = ref({});
+const scopedToken = ref("");
 
 // let gained from step 2
-let apiToken = ref("");
+const apiToken = ref("");
 
 // Data gained from step 3
-let selectedBuckets = ref([]);
+const selectedBuckets = ref([]);
 
 // Data gained from step 4
-let migratedBuckets = ref([]);
+const migratedBuckets = ref([]);
+
+onMounted(() => {
+  // Attempt loading the possible previous migration state
+  loadMigrationState().then(() => {console.log("Scheduled loading interrupted migration.")});
+});
 
 /**
  * Save the migration state to default location
@@ -129,7 +139,7 @@ async function saveMigrationState(buckets) {
   console.log("Migration state save called.");
 
   const migrationState = {
-    username: user,
+    username: toRaw(user.value),
     apiToken: toRaw(apiToken.value),
     timestamp: Math.floor(Date.now() / 1000),
     project: toRaw(activeProject.value),
@@ -155,6 +165,15 @@ async function loadMigrationState() {
   if (migrationState !== null) {
     console.log("Found interrupted migration process. Continuing migration.");
     console.log(migrationState);
+
+    // Enter the parameters from the migration state
+    user.value = migrationState.username;
+    activeProject.value = migrationState.project;
+    oldMigrateBuckets.value = migrationState.buckets;
+
+    migrationInterrupted.value = true;
+    continueMigration.value = true;
+
   }
 }
 
@@ -169,16 +188,11 @@ async function handleProjectDiscovery(unscoped, username) {
 
   if (migrationInterrupted.value) {
     step.value = 4;
-  } else {
-    step.value += 1;
   }
 
   user.value = username;
   console.log(user.value);
   console.log(unscopedToken.value);
-
-  // Save migration state after adding the user
-  saveMigrationState({}).then("Migration state saved.");
 
   step.value += 1;
 }
@@ -194,9 +208,6 @@ async function selectProjectAndScopeToken(project) {
     console.log(scopedToken.value);
   }
 
-  // Save migration state after selecting the project
-  saveMigrationState({}).then("Migration state saved.");
-
   step.value += 1;
 }
 
@@ -207,9 +218,6 @@ async function selectProjectAndScopeToken(project) {
 async function handleAddAPIToken(token) {
   apiToken.value = token;
   console.log(apiToken.value);
-
-  // Save migration state after adding the API token
-  saveMigrationState({}).then("Migration state saved.");
   
   step.value += 1;
 }
@@ -267,16 +275,18 @@ function handleMigrationInterrupt() {
   apiToken.value = "";
   // TODO retrieve user, project, migration state
   // Set vars accordingly
-  step.value = 0;
+  step.value = 4;
 }
 
 function handleReaddAPIToken(token) {
   apiToken.value = token;
   migrationInterrupted.value = false;
 }
-function handleCancelMigration() {
+
+async function handleCancelMigration() {
   //TODO cleanup
   console.log("Migration cancelled");
+  await window.stateAPI.clearState();
   startNewConversion();
 }
 </script>

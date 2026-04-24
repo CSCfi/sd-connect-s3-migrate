@@ -80,12 +80,13 @@ import {
   removeProjectKeyFromWhitelist,
 } from "../scripts/sd-connect";
 
-const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
+const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets } = defineProps([
   "buckets",
   "scopedToken",
   "project",
   "s3address",
   "sdApiToken",
+  "oldMigrateBuckets",
 ]);
 
 const emit = defineEmits([
@@ -135,25 +136,30 @@ let ec2;
 let client;
 
 onMounted(() => {
-  for (const bucket of buckets) {
-    totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
-
-    migrateBuckets.value.push({
-      name: bucket.name,
-      totalObjects: bucket.count,
-      totalObjectsDone: 0,
-      totalHeaders: bucket.count,
-      totalHeadersDone: 0,
-      currentlyMigrating: false,
-      currentlyMigratingFile: "",
-      sharingMigrated: false,
-      headersMigrated: false,
-      conversionNeed: bucket.conversionNeed,
-      objects: [],
-    });
+  if (oldMigrateBuckets.length > 0) {
+    migrateBuckets = oldMigrateBuckets;
+  } else {
+    for (const bucket of buckets) {
+      totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
+  
+      migrateBuckets.value.push({
+        name: bucket.name,
+        totalObjects: bucket.count,
+        totalObjectsDone: 0,
+        totalHeaders: bucket.count,
+        totalHeadersDone: 0,
+        currentlyMigrating: false,
+        currentlyMigratingFile: "",
+        sharingMigrated: false,
+        headersMigrated: false,
+        conversionNeed: bucket.conversionNeed,
+        objects: [],
+      });
+    }
+    console.log(totalSize.value);
+    console.log(migrateBuckets.value);
   }
-  console.log(totalSize.value);
-  console.log(migrateBuckets.value);
+
   // Migration started automatically on step
   beginMigration();
 });
