@@ -7,6 +7,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- (users) Updated login page text (#64)
+
+### Added
+
+- (users) Added Re-enter API key view (#38)
+
 ## [2026.4.19] - 2026-04-24
 
 ### Fixed
