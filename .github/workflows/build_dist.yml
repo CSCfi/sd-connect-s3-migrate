@@ -170,7 +170,7 @@ jobs:
 
       - name: Run builder
         run: |
-          docker run --rm -v ${{ github.workspace }}:/src -e OUT_METADATA="glibc2-30-${{ github.ref_name }}" migration-bash-legacy-build
+          docker run --rm -v ${{ github.workspace }}/sd_connect_s3_migrate_bash:/src -e OUT_METADATA="glibc2-30-${{ github.ref_name }}" migration-bash-legacy-build
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
