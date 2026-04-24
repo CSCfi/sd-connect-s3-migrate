@@ -11,7 +11,9 @@
     </p>
     <p>Login with your CSC credentials.</p>
     <form @submit.prevent="allasLogin">
+      <p v-if="user">Username: {{ user }}</p>
       <c-text-field
+        v-else
         label="CSC username"
         v-model="username"
         :valid="!loginFailed"
@@ -35,11 +37,11 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref, toRaw } from "vue";
 import { loginWithUserpass } from "../scripts/openstack";
 const { user } = defineProps(["user"]);
 
-let username = ref(user);
+let username = ref("");
 let password = ref("");
 let unscoped = ref("");
 let loginFailed = ref(false);
@@ -47,14 +49,21 @@ let loginFailed = ref(false);
 const emit = defineEmits(["login-successful"]);
 
 async function allasLogin() {
-  if (!username.value || !password.value) {
+  let useUsername = "";
+  if (user) {
+    useUsername = user;
+  } else {
+    useUsername = username.value;
+  }
+
+  if (!useUsername || !password.value) {
     loginFailed.value = true;
     return;
   }
-  unscoped.value = await loginWithUserpass(username.value, password.value);
+  unscoped.value = await loginWithUserpass(useUsername, password.value);
   if (unscoped.value) {
     loginFailed.value = false;
-    emit("login-successful", unscoped.value, username.value);
+    emit("login-successful", unscoped.value, useUsername);
   } else {
     loginFailed.value = true;
   }

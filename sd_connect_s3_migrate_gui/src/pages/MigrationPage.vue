@@ -54,6 +54,7 @@
           v-else
           @got-token="handleReaddAPIToken"
           @cancel-migration="handleCancelMigration"
+          @continue-migration="handleContinueMigration"
           :continuedMigration="continueMigration"
           :project="activeProject"
           :buckets="selectedBuckets"
@@ -170,10 +171,10 @@ async function loadMigrationState() {
     user.value = migrationState.username;
     activeProject.value = migrationState.project;
     oldMigrateBuckets.value = migrationState.buckets;
+    apiToken.value = migrationState.apiToken;
 
     migrationInterrupted.value = true;
     continueMigration.value = true;
-
   }
 }
 
@@ -187,14 +188,16 @@ async function handleProjectDiscovery(unscoped, username) {
   projects.value = await discoverTokenProjects(unscoped);
 
   if (migrationInterrupted.value) {
+    console.log(activeProject.value);
+    scopedToken.value = await getScopedToken(unscopedToken.value, activeProject.value.id);
     step.value = 4;
+  } else {
+    step.value += 1;
   }
 
   user.value = username;
   console.log(user.value);
   console.log(unscopedToken.value);
-
-  step.value += 1;
 }
 
 /**
@@ -280,6 +283,10 @@ function handleMigrationInterrupt() {
 
 function handleReaddAPIToken(token) {
   apiToken.value = token;
+  migrationInterrupted.value = false;
+}
+
+function handleContinueMigration() {
   migrationInterrupted.value = false;
 }
 

@@ -5,7 +5,7 @@
       {{ project?.name }}
     </p>
     <h1>Data conversion was interrupted</h1>
-    <p v-if="continue">
+    <p v-if="continuedMigration">
       Data conversion was interrupted due to the migration tool getting closed. Click continue
       if you want to continue the migration process.
     </p>
@@ -13,7 +13,7 @@
       Data conversion was interrupted due to an expired or invalid API key. Please continue conversion by creating a new
       API key via SD Connect user interface. Navigate to Support -> Create API keys.
     </p>
-    <div v-if="continue">
+    <div v-if="continuedMigration">
       <div>
         <p>
           <b>Estimated conversion time:</b>

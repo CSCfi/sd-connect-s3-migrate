@@ -137,7 +137,7 @@ let client;
 
 onMounted(() => {
   if (oldMigrateBuckets.length > 0) {
-    migrateBuckets = oldMigrateBuckets;
+    migrateBuckets.value = oldMigrateBuckets;
   } else {
     for (const bucket of buckets) {
       totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
