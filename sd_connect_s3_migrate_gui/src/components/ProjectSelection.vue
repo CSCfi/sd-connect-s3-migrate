@@ -2,6 +2,11 @@
   <div>
     <h1>Select project</h1>
     <p>SD Connect Conversion tool allows you to convert buckets from one project at a time.</p>
+    <c-alert type="warning">
+      <b>If your project has more than 1 TB of data</b>
+      If your project has more than 1 TB of data, contact servicedesk@csc.fi with the subject "Sensitive data". We will
+      plan the conversion process together with you.
+    </c-alert>
     <c-select
       v-model="selectedProject"
       v-control
