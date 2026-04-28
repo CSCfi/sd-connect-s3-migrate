@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- adjusted the estimated migration speed
 - (users) updated time estimation
 - (users) Updated login page text (#64)
 
