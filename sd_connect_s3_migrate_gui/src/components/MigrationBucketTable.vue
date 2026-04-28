@@ -96,21 +96,51 @@ const tableData = computed(() => {
     // If there isn't an ongoing migration, some bucket properties might be missing
     const totalObjects = bucket?.totalObjects ?? bucket?.count ?? 0;
     const totalObjectsDone = bucket?.totalObjectsDone ?? 0;
-
+    const progress = Math.round((totalObjectsDone / totalObjects) * 100);
     return {
       ...row,
       progress: migrationStage
         ? {
-            value: getProgressString(bucket),
-            component: {
-              tag: "span",
-              params: {
-                style: {
-                  // provide width to prevent row from visual glitch on update
-                  minWidth: "35ch",
+            value: "",
+            children: [
+              {
+                value: "",
+                component: {
+                  tag: "div",
                 },
+                children: [
+                  bucket.currentlyMigrating === true
+                    ? {
+                        value: "",
+                        component: {
+                          tag: "c-progress-bar",
+                          params: {
+                            value: progress,
+                            indeterminate: migrationStage === migrationStages.objects ? false : true,
+                            hideDetails: true,
+                            style: {
+                              width: "30ch",
+                              paddingBottom: "0.5rem",
+                            },
+                          },
+                        },
+                      }
+                    : { value: "" },
+                  {
+                    value: getProgressString(bucket),
+                    component: {
+                      tag: "span",
+                      params: {
+                        style: {
+                          // provide width to prevent row from visual glitch on update
+                          minWidth: "35ch",
+                        },
+                      },
+                    },
+                  },
+                ],
               },
-            },
+            ],
           }
         : {
             value: `${totalObjectsDone}/${totalObjects} items converted`,
