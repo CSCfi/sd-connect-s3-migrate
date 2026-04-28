@@ -3,7 +3,7 @@
 /**
  * Estimated bandwidth of 100Mbps
  */
-export const estimatedBytesPerSec = (100 * 1000000) / 8;
+export const estimatedBytesPerSec = (50 * 1000000) / 8;
 
 export const migrationStages = {
   starting: "starting",
