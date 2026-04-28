@@ -33,8 +33,9 @@
       <c-alert v-if="selected.length" type="warning">
         <span>
           <b>Estimated conversion time:</b>
-          {{ getReadableTime(estimatedTime) }}
+          {{ getTimeEstimate(estimatedTime) }}
         </span>
+        Conversion time can vary based on internet connection speed and file size.
         <c-link
           underline
           href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
@@ -73,7 +74,7 @@
 <script setup>
 import { computed, watch, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
-import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getReadableTime } from "../scripts/common";
+import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getTimeEstimate } from "../scripts/common";
 import { getBuckets, getEC2Credentials } from "../scripts/openstack";
 import { S3Client, ListBucketsCommand } from "@aws-sdk/client-s3";
 import { NEW_VERSION_DATE } from "../scripts/config";

@@ -29,7 +29,7 @@
     <div>
       <p>
         <b>Estimated conversion time:</b>
-        {{ getReadableTime(estimatedTime) }}
+        {{ getTimeEstimate(estimatedTime) }}
       </p>
     </div>
     <MigrationBucketTable :buckets="migrateBuckets" :migration-stage="currentStage" />
@@ -58,7 +58,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { getSDConnectAPIEndpoint } from "../scripts/config";
-import { estimatedBytesPerSec, getReadableTime, migrationStages, timeout } from "../scripts/common";
+import { estimatedBytesPerSec, getTimeEstimate, migrationStages, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
