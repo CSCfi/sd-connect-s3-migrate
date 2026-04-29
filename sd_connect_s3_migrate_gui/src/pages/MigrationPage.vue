@@ -7,7 +7,7 @@
     <div id="separator"></div>
     <!-- Main contents for the application -->
     <div id="login-card" v-if="step == 0">
-      <Login :user="user" @login-successful="handleProjectDiscovery" />
+      <Login v-model:user="user" :user-exists="userExists" @login-successful="handleProjectDiscovery" />
     </div>
 
     <div id="steps-wrapper" v-else>
@@ -125,6 +125,9 @@ const selectedBuckets = ref([]);
 // Data gained from step 4
 const migratedBuckets = ref([]);
 
+// Track whether this component updates user value
+const userExists = ref(false);
+
 onMounted(() => {
   // Attempt loading the possible previous migration state
   loadMigrationState().then(() => {
@@ -176,6 +179,7 @@ async function loadMigrationState() {
 
     migrationInterrupted.value = true;
     continueMigration.value = true;
+    userExists.value = true;
   }
 }
 
@@ -184,7 +188,7 @@ async function loadMigrationState() {
  * @param {string} unscoped - unscoped token of the user logging in
  * @param {string} username - name of the user logging in
  */
-async function handleProjectDiscovery(unscoped, username) {
+async function handleProjectDiscovery(unscoped) {
   unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
 
@@ -195,8 +199,6 @@ async function handleProjectDiscovery(unscoped, username) {
   } else {
     step.value += 1;
   }
-
-  user.value = username;
   console.log(user.value);
   console.log(unscopedToken.value);
 }
