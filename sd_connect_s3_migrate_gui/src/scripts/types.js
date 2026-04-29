@@ -14,6 +14,7 @@
 /**
  * @typedef {Object} MigrationEntry
  * @property {string} name - Name of the bucket that is flagged to be migrated
+ * @property {number} bytes - Bucket size
  * @property {number} totalObjects - The total amount of objects to be migrated
  * @property {number} totalObjectsDone - The amount of objects that have already been migrated
  * @property {number} totalHeaders - The total amount of headers to be migrated (typically same as amount of objects)
@@ -22,7 +23,7 @@
  * @property {boolean} sharingMigrated - Flag if the bucket sharing has been migrated
  * @property {boolean} headersMigrated - Flag if the bucket headers have been migrated
  * @property {string} currentlyMigratingFile - The file currently being migrated
- * @property {number} conversionNeed - Flag the level of incompatibiltiy of the bucket
+ * @property {number} conversionNeed - Flag the level of incompatibility of the bucket
  * @property {MigrationObject[]} objects - List of the objects to be migrated
  */
 

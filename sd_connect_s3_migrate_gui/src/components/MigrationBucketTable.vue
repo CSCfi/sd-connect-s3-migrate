@@ -93,6 +93,10 @@ const tableData = computed(() => {
   // No need to recompute all data
   return staticTableData.value?.map((row, i) => {
     const bucket = buckets[i];
+    // If there isn't an ongoing migration, some bucket properties might be missing
+    const totalObjects = bucket?.totalObjects ?? bucket?.count ?? 0;
+    const totalObjectsDone = bucket?.totalObjectsDone ?? 0;
+
     return {
       ...row,
       progress: migrationStage
@@ -109,7 +113,7 @@ const tableData = computed(() => {
             },
           }
         : {
-            value: `${bucket.totalObjectsDone}/${bucket.totalObjects} items converted`,
+            value: `${totalObjectsDone}/${totalObjects} items converted`,
             component: {
               tag: "span",
             },

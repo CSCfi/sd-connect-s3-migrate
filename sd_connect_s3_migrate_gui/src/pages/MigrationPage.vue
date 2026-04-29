@@ -39,9 +39,9 @@
 
       <div id="migration-card" v-if="step == 4">
         <Migration
-          v-if="!migrationInterrupted"
+          v-if="!migrationInterruptReason"
           @buckets-migrated="handleBucketsMigrated"
-          @api-key-error="handleMigrationInterrupt"
+          @error="handleMigrationError"
           @update-migration-state="saveMigrationState"
           :sdApiToken="apiToken"
           :buckets="selectedBuckets"
@@ -55,9 +55,9 @@
           @got-token="handleReaddAPIToken"
           @cancel-migration="handleCancelMigration"
           @continue-migration="handleContinueMigration"
-          :continuedMigration="continueMigration"
+          :reason="migrationInterruptReason"
           :project="activeProject"
-          :buckets="selectedBuckets"
+          :buckets="oldMigrateBuckets.length ? oldMigrateBuckets : selectedBuckets"
         />
       </div>
 
@@ -84,6 +84,7 @@ import Migration from "../components/BucketMigration.vue";
 import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
+import { interruptReasons } from "../scripts/common";
 
 // Type imports
 /**
@@ -102,8 +103,7 @@ import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts
 const step = ref(0);
 const selectRef = useTemplateRef("projectSelect");
 const tokenRef = useTemplateRef("tokenInput");
-const migrationInterrupted = ref(false);
-const continueMigration = ref(false);
+const migrationInterruptReason = ref("");
 
 const oldMigrateBuckets = ref([]);
 
@@ -177,8 +177,7 @@ async function loadMigrationState() {
     oldMigrateBuckets.value = migrationState.buckets;
     apiToken.value = migrationState.apiToken;
 
-    migrationInterrupted.value = true;
-    continueMigration.value = true;
+    migrationInterruptReason.value = interruptReasons.quitApp;
     userExists.value = true;
   }
 }
@@ -192,7 +191,7 @@ async function handleProjectDiscovery(unscoped) {
   unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
 
-  if (migrationInterrupted.value) {
+  if (migrationInterruptReason.value) {
     console.log(activeProject.value);
     scopedToken.value = await getScopedToken(unscopedToken.value, activeProject.value.id);
     step.value = 4;
@@ -273,28 +272,33 @@ function startNewConversion() {
   tokenRef.value.reset();
   scopedToken.value = "";
   selectedBuckets.value = [];
+  oldMigrateBuckets.value = [];
   migratedBuckets.value = [];
+  migrationInterruptReason.value = "";
 }
 
-function handleMigrationInterrupt() {
-  migrationInterrupted.value = true;
-  apiToken.value = "";
-  // TODO retrieve user, project, migration state
-  // Set vars accordingly
+async function handleMigrationError(error) {
+  migrationInterruptReason.value = error;
+
+  // Get buckets from migration state
+  const migrationState = await window.stateAPI.loadState();
+  if (migrationState !== null) {
+    oldMigrateBuckets.value = migrationState.buckets;
+  }
+
   step.value = 4;
 }
 
 function handleReaddAPIToken(token) {
   apiToken.value = token;
-  migrationInterrupted.value = false;
+  handleContinueMigration();
 }
 
 function handleContinueMigration() {
-  migrationInterrupted.value = false;
+  migrationInterruptReason.value = "";
 }
 
 async function handleCancelMigration() {
-  //TODO cleanup
   console.log("Migration cancelled");
   await window.stateAPI.clearState();
   startNewConversion();

@@ -58,7 +58,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { getSDConnectAPIEndpoint } from "../scripts/config";
-import { estimatedBytesPerSec, getTimeEstimate, migrationStages, timeout } from "../scripts/common";
+import { estimatedBytesPerSec, getTimeEstimate, interruptReasons, migrationStages, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
@@ -89,7 +89,7 @@ const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets 
   "oldMigrateBuckets",
 ]);
 
-const emit = defineEmits(["buckets-migrated", "update-migration-state", "api-key-error"]);
+const emit = defineEmits(["buckets-migrated", "update-migration-state", "error"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -104,6 +104,7 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
 [
   {
     name: str
+    bytes: int
     totalObjects: int
     totalObjectsDone: int
     totalHeaders: int
@@ -136,10 +137,12 @@ onMounted(() => {
     migrateBuckets.value = oldMigrateBuckets;
   } else {
     for (const bucket of buckets) {
-      totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
+      const bucketSize = bucket.segmentsBytes ?? bucket.bytes;
+      totalSize.value += bucketSize;
 
       migrateBuckets.value.push({
         name: bucket.name,
+        bytes: bucketSize,
         totalObjects: bucket.count,
         totalObjectsDone: 0,
         totalHeaders: bucket.count,
@@ -695,22 +698,25 @@ async function beginMigration() {
   console.log("Begun migration.");
 
   // Initialize the ec2 credentials and the client
-  ec2 = await getEC2Credentials(scopedToken, project.id);
-  client = new S3Client({
-    region: "us-east-1",
-    endpoint: s3address,
-    credentials: {
-      accessKeyId: ec2.access,
-      secretAccessKey: ec2.secret,
-    },
-  });
+  try {
+    ec2 = await getEC2Credentials(scopedToken, project.id);
+    client = new S3Client({
+      region: "us-east-1",
+      endpoint: s3address,
+      credentials: {
+        accessKeyId: ec2.access,
+        secretAccessKey: ec2.secret,
+      },
+    });
+  } catch (e) {
+    console.log("Failed to create an S3 client. Reason/traceback:");
+    console.log(e);
+    emit("error", interruptReasons.migrationError);
+    return;
+  }
 
   // Iterate over all buckets flagged for migration
   for (const bucket of migrateBuckets.value) {
-    currentStage.value = migrationStages.starting;
-    // Flag the bucket as actively migrated
-    bucket.currentlyMigrating = true;
-
     // Retrieve the list of bucket objects
     try {
       let objects = await getObjects(scopedToken, bucket.name);
@@ -734,12 +740,17 @@ async function beginMigration() {
   emit("update-migration-state", toRaw(migrateBuckets.value));
 
   for (const bucket of migrateBuckets.value) {
+    currentStage.value = migrationStages.starting;
+    // Flag the bucket as actively migrated
+    bucket.currentlyMigrating = true;
+
     // Ensure that the bucket exists
     try {
       await createNewBucket(bucket.name);
     } catch (e) {
       console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -752,6 +763,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket sharing migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -763,6 +775,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket header migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -774,6 +787,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket objects migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
     bucket.currentlyMigrating = false;
@@ -784,9 +798,9 @@ async function beginMigration() {
 }
 
 function checkError(error) {
-  // If Unauthorized, signal to relogin and prompt for new API token
+  // If Unauthorized, signal prompt for new API token
   if (error?.status === 401 || error?.cause?.status === 401) {
-    emit("api-key-error");
+    emit("error", interruptReasons.apiKeyError);
     throw new Error("Migration interrupted due to expired or invalid API key.");
   }
 }

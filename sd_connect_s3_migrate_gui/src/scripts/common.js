@@ -1,4 +1,4 @@
-// Convenience functions used across the application
+// Convenience functions and constants used across the application
 
 /**
  * Estimated bandwidth of 100Mbps
@@ -10,6 +10,12 @@ export const migrationStages = {
   sharing: "sharing",
   headers: "headers",
   objects: "objects",
+};
+
+export const interruptReasons = {
+  quitApp: "quitApp",
+  apiKeyError: "apiKeyError",
+  migrationError: "migrationError",
 };
 
 /**
