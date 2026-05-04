@@ -1,6 +1,5 @@
 // Migration tool type definitions
 
-
 // Type definitions for state and progress tracking
 
 /**

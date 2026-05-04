@@ -256,7 +256,7 @@ async function migrateBucketHeaders(bucket) {
     if (object.headerDone) {
       console.log("Skipping an object header that's already marked as done.");
       continue;
-    };
+    }
 
     // Retrieve the previous header
     let header;
