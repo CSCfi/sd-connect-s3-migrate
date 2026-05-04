@@ -217,6 +217,11 @@ async function migrateBucketHeaders(bucket) {
     return;
   }
 
+  // Skip header copy if already done
+  if (bucket.headersMigrated) {
+    return;
+  }
+
   // Simulate header migration if there's no SD Connect API URL
   // We're first testing just the object storage side of things, as it's preferable
   // to test header migration on dev before starting to migrate production headers
@@ -248,7 +253,10 @@ async function migrateBucketHeaders(bucket) {
   // Migrate bucket headers for objects that require it
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
-    if (object.headerDone) continue;
+    if (object.headerDone) {
+      console.log("Skipping an object header that's already marked as done.");
+      continue;
+    };
 
     // Retrieve the previous header
     let header;
@@ -452,6 +460,7 @@ async function migrateBucketObjects(bucket) {
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.contentDone) {
+      console.log("Skipping an already done object.");
       bucket.totalObjectsDone++;
       totalSizeDone.value += object.bytes;
       continue;
@@ -716,23 +725,31 @@ async function beginMigration() {
   }
 
   // Iterate over all buckets flagged for migration
-  for (const bucket of migrateBuckets.value) {
-    // Retrieve the list of bucket objects
-    try {
-      let objects = await getObjects(scopedToken, bucket.name);
-      // Format the object listing according to our requirements
-      bucket.objects = objects.map((object) => {
-        return {
-          key: object.name,
-          bytes: object.bytes ?? 0,
-          headerDone: false,
-          contentDone: false,
-          isSegmented: object.bytes == 0 ? true : false,
-          manifestBackup: "",
-        };
-      });
-    } catch {
-      continue;
+  if (oldMigrateBuckets.length > 0) {
+    // Wipe the old state content doneness values to preserve correct rendering
+    migrateBuckets.value.totalSizeDone = 0;
+    for (const bucket of migrateBuckets.value) {
+      bucket.totalObjectsDone = 0;
+    }
+  } else {
+    for (const bucket of migrateBuckets.value) {
+      // Retrieve the list of bucket objects
+      try {
+        let objects = await getObjects(scopedToken, bucket.name);
+        // Format the object listing according to our requirements
+        bucket.objects = objects.map((object) => {
+          return {
+            key: object.name,
+            bytes: object.bytes ?? 0,
+            headerDone: false,
+            contentDone: false,
+            isSegmented: object.bytes == 0 ? true : false,
+            manifestBackup: "",
+          };
+        });
+      } catch {
+        continue;
+      }
     }
   }
 

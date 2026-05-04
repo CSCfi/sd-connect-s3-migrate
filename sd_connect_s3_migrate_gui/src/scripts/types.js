@@ -1,6 +1,8 @@
 // Migration tool type definitions
 
+
 // Type definitions for state and progress tracking
+
 /**
  * @typedef {Object} MigrationObject
  * @property {string} key - The key of the object in object storage
@@ -47,6 +49,7 @@
  */
 
 // Type definitions for API results and communication
+
 /**
  * @typedef {Object} OpenstackBucket
  * @property {number} count - amount of objects in the bucket
