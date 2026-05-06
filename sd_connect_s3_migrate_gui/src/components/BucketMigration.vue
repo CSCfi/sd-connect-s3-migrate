@@ -45,6 +45,7 @@ import {
   CompleteMultipartUploadCommand,
   CreateBucketCommand,
   CreateMultipartUploadCommand,
+  GetBucketPolicyCommand,
   HeadBucketCommand,
   HeadObjectCommand,
   PutBucketPolicyCommand,
@@ -560,58 +561,100 @@ async function migrateBucketObjects(bucket) {
  * @param {string} bucket.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
-  // Currently we assume there are no bucket policies present
-  // TODO: do we want to check if they exist?
-  let policy = {
-    Version: "2012-10-17",
-    Statement: [],
-  };
-  // Retrieve the bucket ACLs
+  function createEmptyPolicy() {
+    return {
+      Version: "2012-10-17",
+      Statement: [],
+    };
+  }
+  let currentPolicy;
+  const targetBucket = convertBucketName(bucket.name);
+  const isSameBucket = bucket.name === targetBucket;
+  const receivers = new Set();
+
+  // Step 1. Retrieve the bucket policy
+  try {
+    const command = new GetBucketPolicyCommand({ Bucket: bucket.name });
+    const response = await client.send(command);
+    if (response?.Policy) {
+      currentPolicy = JSON.parse(response.Policy);
+    }
+  } catch (e) {
+    if (e.name === "NoSuchBucket") {
+      console.error(`Error retrieving bucket ${bucket.name} policy: bucket does not exist`);
+      throw e;
+    } else {
+      console.log(`Bucket policy for ${bucket.name} cannot be retrieved: ${e?.name}`);
+    }
+  }
+  // Step 2. Retrieve the bucket ACLs
   const ACLs = await getBucketACLs(scopedToken, bucket.name);
-  // Add statements for all read rights
-  if (ACLs?.read?.length > 0) {
-    for (const receiver of ACLs.read) {
-      let newStatement = {
-        Sid: "GrantSDConnectSharedAccessToProject",
-        Effect: "Allow",
-        Principal: {
-          AWS: `arn:aws:iam::${receiver}:root`,
-        },
-        Action: [
-          "s3:GetObject",
-          "s3:ListBucket",
-          "s3:GetObjectTagging",
-          "s3:GetObjectVersion",
-          ...// If the project exists in the write ACL, also add the write statements.
-          // We don't sync bare write rights as non-supported.
-          (ACLs.write?.findIndex((i) => i == receiver) >= 0
-            ? [
-                "s3:PutObject",
-                "s3:DeleteObject",
-                "s3:AbortMultipartUpload",
-                "s3:ListMultipartUploadParts",
-                "s3:ListBucketMultipartUploads",
-              ]
-            : []),
-        ],
-        Resource: [
-          `arn:aws:s3:::${convertBucketName(bucket.name)}`,
-          `arn:aws:s3:::${convertBucketName(bucket.name)}/*`,
-        ],
-      };
 
-      // Append the new statement to the list of statements
-      policy.Statement.push(newStatement);
+  /*
+    Case 1. No existing policy (e.g. incompatible buckets)
+    Create a bucket policy from ACLs or create an empty bucket policy
+  */
+  if (!currentPolicy) {
+    const policy = createEmptyPolicy();
+    const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs);
+    if (statementsFromACL.length) {
+      policy.Statement.push(...statementsFromACL);
+    }
+    await putBucketPolicy(targetBucket, policy);
 
-      // If the bucket name has changed, migrate the Vault side sharing for the current project
-      if (bucket.name !== convertBucketName(bucket.name) && (await getSDConnectAPIEndpoint())) {
+    /*
+      Case 2. Bucket policy exists (i.e. shared before migration, after switch to S3)
+      If bucket name remains the same: add bucket policy statements from ACLs
+      If bucket name changes in migration: copy bucket policy from old bucket, add bucket policy statements from ACLs
+    */
+  } else {
+    const currentStatements =
+      currentPolicy?.Statement.filter((statement) => statement?.Sid === "GrantSDConnectSharedAccessToProject") || [];
+    if (isSameBucket) {
+      const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs, currentStatements);
+      if (statementsFromACL.length) {
+        currentPolicy.Statement.push(...statementsFromACL);
+        await putBucketPolicy(targetBucket, currentPolicy);
+      }
+    } else {
+      // NB Policy currently overwritten if target bucket already existed before migration
+      const policy = createEmptyPolicy();
+      currentStatements.forEach((statement) => {
+        const principal = statement?.Principal?.AWS;
+        const receiver = principal.match(/::([0-9a-fA-F]+):root$/)[1];
+        receivers.add(receiver);
+        const newStatement = {
+          ...statement,
+          Resource: [`arn:aws:s3:::${targetBucket}`, `arn:aws:s3:::${targetBucket}/*`],
+        };
+        policy.Statement.push(newStatement);
+      });
+      const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs, currentStatements);
+      policy.Statement.push(...statementsFromACL);
+      await putBucketPolicy(targetBucket, policy);
+    }
+  }
+
+  // Step 3. If the bucket name has changed, migrate the Vault side sharing for the current project
+
+  if (!isSameBucket) {
+    // Build/finish building share receiver set
+    ACLs?.read?.forEach((r) => receivers.add(r));
+
+    if (receivers.size > 0) {
+      const apiEndpoint = await getSDConnectAPIEndpoint();
+      if (!apiEndpoint) {
+        throw new Error("SD Connect API URL not configured, cannot migrate sharing");
+      }
+
+      for (const receiver of receivers) {
         // Retrieve the receiver project IDs
         const ids = await checkProjectIDs(receiver);
-        console.log(`Got project IDs ${ids}`);
         if (ids?.id === undefined || ids?.name === undefined) {
           console.log(`No project id cache for project ${receiver}, skipping`);
           continue;
         }
+        console.log(`Got project IDs: ${ids.id}, ${ids.name}`);
         let oldSharingWhitelist;
         try {
           oldSharingWhitelist = await checkSharingWhitelist(sdApiToken, project.name, bucket.name, ids.name);
@@ -627,45 +670,23 @@ async function migrateBucketSharing(bucket) {
           oldSharingWhitelist?.data?.id != ids.name ||
           oldSharingWhitelist?.data?.idkeystone != ids.id
         ) {
-          console.log(`Project not in the bucket sharing whitelist, skipping.`);
+          console.log("Project not in the bucket sharing whitelist, skipping.");
           continue;
         }
 
         try {
-          await putSharingWhitelist(sdApiToken, project.name, convertBucketName(bucket.name), [ids]);
+          await putSharingWhitelist(sdApiToken, project.name, targetBucket, [ids]);
         } catch (e) {
           checkError(e);
           console.log("Failed to add project sharing whitelist.");
           console.log(e);
         }
-      } else {
-        console.log("SD Connect API URL not configured, not migrating sharing.");
       }
-    }
-  }
-  try {
-    const command = new PutBucketPolicyCommand({
-      Bucket: convertBucketName(bucket.name),
-      Policy: JSON.stringify(policy),
-    });
-    await client.send(command);
-    console.log(`Added bucket policy for ${convertBucketName(bucket.name)}`);
-  } catch (e) {
-    if (e instanceof S3ServiceException && e.name === "MalformedPolicy") {
-      // Shamelessly recycle the error handling from AWS docs
-      console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". The policy was malformed.`,
-      );
-      return;
-    } else if (e instanceof S3ServiceException) {
-      console.error(
-        `Error from S3 while setting the bucket policy for the bucket "${convertBucketName(bucket.name)}". ${e.name}: ${e.message}`,
-      );
+      console.log(`Finished migrating sharing whitelist for bucket ${bucket.name}`);
     } else {
-      throw e;
+      console.log(`No sharing whitelist to migrate for bucket ${bucket.name}`);
     }
   }
-
   // Mark sharing as migrated
   bucket.sharingMigrated = true;
 
@@ -816,6 +837,85 @@ function checkError(error) {
   if (error?.status === 401 || error?.cause?.status === 401) {
     emit("error", interruptReasons.apiKeyError);
     throw new Error("Migration interrupted due to expired or invalid API key.");
+  }
+}
+
+/**
+ * Function to generate a list of bucket policy statements from ACL
+ * @param {string} bucketName - bucket name access is granted to
+ * @param {Array} ACLs - Swift ACLs
+ * @param {Array} currentStatements - current statements from existing bucket policy
+ * @returns {Array} constructed policy statements
+ */
+function generatePolicyStatementsFromACL(bucketName, ACLs, currentStatements = []) {
+  const newStatements = [];
+  if (ACLs?.read?.length > 0) {
+    for (const receiver of ACLs.read) {
+      const principal = `arn:aws:iam::${receiver}:root`;
+      const statementExists = currentStatements.find((statement) => statement?.Principal?.AWS === principal);
+      if (statementExists) {
+        // V3 sharing is more recent and takes precedence, do nothing
+        continue;
+      } else {
+        const writeAccess = ACLs.write?.findIndex((i) => i == receiver) > -1;
+        let newStatement = {
+          Sid: "GrantSDConnectSharedAccessToProject",
+          Effect: "Allow",
+          Principal: {
+            AWS: `arn:aws:iam::${receiver}:root`,
+          },
+          Action: [
+            "s3:GetObject",
+            "s3:ListBucket",
+            "s3:GetObjectTagging",
+            "s3:GetObjectVersion",
+            ...// If the project exists in the write ACL, also add the write statements.
+            // We don't sync bare write rights as non-supported.
+            (writeAccess
+              ? [
+                  "s3:PutObject",
+                  "s3:DeleteObject",
+                  "s3:AbortMultipartUpload",
+                  "s3:ListMultipartUploadParts",
+                  "s3:ListBucketMultipartUploads",
+                ]
+              : []),
+          ],
+          Resource: [`arn:aws:s3:::${bucketName}`, `arn:aws:s3:::${bucketName}/*`],
+        };
+        // Append the new statement to the list of statements
+        newStatements.push(newStatement);
+      }
+    }
+  }
+  return newStatements;
+}
+
+/**
+ * Puts an S3 bucket policy
+ * @param {string} bucketName - name of bucket to put a policy for
+ * @param {object} policy - policy object
+ */
+async function putBucketPolicy(bucketName, policy) {
+  try {
+    const command = new PutBucketPolicyCommand({
+      Bucket: convertBucketName(bucketName),
+      Policy: JSON.stringify(policy),
+    });
+    await client.send(command);
+    console.log(`Added bucket policy for ${bucketName}`);
+  } catch (e) {
+    if (e instanceof S3ServiceException && e.name === "MalformedPolicy") {
+      // Shamelessly recycle the error handling from AWS docs
+      console.error(
+        `Error from S3 while setting the bucket policy for the bucket "${bucketName}". The policy was malformed.`,
+      );
+    } else if (e instanceof S3ServiceException) {
+      console.error(
+        `Error from S3 while setting the bucket policy for the bucket "${bucketName}". ${e.name}: ${e.message}`,
+      );
+    }
+    throw e;
   }
 }
 </script>
