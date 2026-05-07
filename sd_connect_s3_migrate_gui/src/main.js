@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, powerSaveBlocker } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import fs from "fs/promises";
@@ -188,3 +188,19 @@ app.on("window-all-closed", () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
+
+// Prevent app from suspending on cue from renderer channel
+let blockerId = null;
+
+ipcMain.on("power-save-block:start", () => {
+  if (blockerId === null) {
+    blockerId = powerSaveBlocker.start("prevent-app-suspension");
+  }
+});
+
+ipcMain.on("power-save-block:stop", () => {
+  if (blockerId !== null) {
+    powerSaveBlocker.stop(blockerId);
+    blockerId = null;
+  }
+});

@@ -54,3 +54,8 @@ contextBridge.exposeInMainWorld("stateAPI", {
   clearState: clearMigrationStateCallback,
   finishState: finishMigrationStateCallback,
 });
+
+contextBridge.exposeInMainWorld("powerSaveBlocker", {
+  start: () => ipcRenderer.send("power-save-block:start"),
+  stop: () => ipcRenderer.send("power-save-block:stop"),
+});

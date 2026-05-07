@@ -87,9 +87,11 @@ onMounted(() => {
     // Non-migrated segmented objects will have size 0
     // Subtract migrated bytes
     let bucketBytesLeft = bucket.bytes;
-    for (const object of bucket.objects) {
-      if (object.contentDone) {
-        bucketBytesLeft -= object.bytes;
+    if (bucket?.objects) {
+      for (const object of bucket.objects) {
+        if (object.contentDone) {
+          bucketBytesLeft -= object.bytes;
+        }
       }
     }
     bytesLeft.value += bucketBytesLeft;
