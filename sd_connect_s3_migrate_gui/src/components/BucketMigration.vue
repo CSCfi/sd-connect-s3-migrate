@@ -555,6 +555,8 @@ async function migrateBucketObjects(bucket) {
 
     emit("update-migration-state", toRaw(migrateBuckets.value));
   }
+
+  bucket.currentlyMigratingFile = "";
 }
 
 /**
