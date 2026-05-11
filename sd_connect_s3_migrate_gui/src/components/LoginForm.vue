@@ -1,7 +1,7 @@
 <template>
   <div>
     <h1>Login to SD Connect Conversion tool</h1>
-    <c-alert type="error" v-if="!!user">
+    <c-alert type="error" v-if="userExists">
       <h3>Data conversion was interrupted</h3>
       Please login to choose how to continue.
     </c-alert>
@@ -13,12 +13,12 @@
     <form @submit.prevent="allasLogin">
       <c-text-field
         label="CSC username"
-        v-model="username"
+        v-model="user"
         :valid="!loginFailed"
         hide-details
         @changeValue="loginFailed = false"
         @keyup.enter="allasLogin"
-        :disabled="!!user"
+        :disabled="userExists"
       />
       <c-text-field
         label="Password"
@@ -37,9 +37,9 @@
 <script setup>
 import { ref } from "vue";
 import { loginWithUserpass } from "../scripts/openstack";
-const { user } = defineProps(["user"]);
+const { userExists } = defineProps(["userExists"]);
+const user = defineModel("user");
 
-let username = ref(user);
 let password = ref("");
 let unscoped = ref("");
 let loginFailed = ref(false);
@@ -47,14 +47,14 @@ let loginFailed = ref(false);
 const emit = defineEmits(["login-successful"]);
 
 async function allasLogin() {
-  if (!username.value || !password.value) {
+  if (!user.value || !password.value) {
     loginFailed.value = true;
     return;
   }
-  unscoped.value = await loginWithUserpass(username.value, password.value);
+  unscoped.value = await loginWithUserpass(user.value, password.value);
   if (unscoped.value) {
     loginFailed.value = false;
-    emit("login-successful", unscoped.value, username.value);
+    emit("login-successful", unscoped.value);
   } else {
     loginFailed.value = true;
   }

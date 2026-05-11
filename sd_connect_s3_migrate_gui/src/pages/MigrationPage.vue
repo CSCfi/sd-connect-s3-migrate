@@ -7,7 +7,7 @@
     <div id="separator"></div>
     <!-- Main contents for the application -->
     <div id="login-card" v-if="step == 0">
-      <Login :user="user" @login-successful="handleProjectDiscovery" />
+      <Login v-model:user="user" :user-exists="userExists" @login-successful="handleProjectDiscovery" />
     </div>
 
     <div id="steps-wrapper" v-else>
@@ -39,11 +39,13 @@
 
       <div id="migration-card" v-if="step == 4">
         <Migration
-          v-if="!migrationInterrupted"
+          v-if="!migrationInterruptReason"
           @buckets-migrated="handleBucketsMigrated"
-          @api-key-error="handleMigrationInterrupt"
+          @error="handleMigrationError"
+          @update-migration-state="saveMigrationState"
           :sdApiToken="apiToken"
           :buckets="selectedBuckets"
+          :oldMigrateBuckets="oldMigrateBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"
           :s3address="getS3endpoint()"
@@ -52,8 +54,10 @@
           v-else
           @got-token="handleReaddAPIToken"
           @cancel-migration="handleCancelMigration"
+          @continue-migration="handleContinueMigration"
+          :reason="migrationInterruptReason"
           :project="activeProject"
-          :buckets="selectedBuckets"
+          :buckets="oldMigrateBuckets.length ? oldMigrateBuckets : selectedBuckets"
         />
       </div>
 
@@ -69,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, useTemplateRef } from "vue";
+import { ref, useTemplateRef, toRaw, onMounted } from "vue";
 
 // Component imports
 import Login from "../components/LoginForm.vue";
@@ -80,22 +84,39 @@ import Migration from "../components/BucketMigration.vue";
 import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
+import { interruptReasons } from "../scripts/common";
+
+// Type imports
+/**
+ * @typedef {import { OpenstackProject } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import { OpenstackBucket } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import { MigrationBucketList } from "../scripts/types.js"}
+ */
+/**
+ * @typedef {import { MigrationState } from "../scripts/types.js"}
+ */
 
 const step = ref(0);
 const selectRef = useTemplateRef("projectSelect");
 const tokenRef = useTemplateRef("tokenInput");
-const migrationInterrupted = ref(false);
+const migrationInterruptReason = ref("");
+
+const oldMigrateBuckets = ref([]);
 
 // Data gained from login
-let user = ref("");
-let unscopedToken = ref("");
+const user = ref("");
+const unscopedToken = ref("");
 const projects = ref([]);
 
 // Data gained from step 1
-const activeProject = ref(null);
+const activeProject = ref({});
 const scopedToken = ref("");
 
-// Data gained from step 2
+// let gained from step 2
 const apiToken = ref("");
 
 // Data gained from step 3
@@ -104,33 +125,101 @@ const selectedBuckets = ref([]);
 // Data gained from step 4
 const migratedBuckets = ref([]);
 
-// Handle the project discovery from unscoped token
-async function handleProjectDiscovery(unscoped, username) {
+// Track whether this component updates user value
+const userExists = ref(false);
+
+onMounted(() => {
+  // Attempt loading the possible previous migration state
+  loadMigrationState().then(() => {
+    console.log("Scheduled loading interrupted migration.");
+  });
+});
+
+/**
+ * Save the migration state to default location
+ * @param {MigrationBucketList} buckets - the list of buckets as the current migration state
+ */
+async function saveMigrationState(buckets) {
+  // The migration bucket list is missing part of the migration state
+  console.log("Migration state save called.");
+
+  const migrationState = {
+    username: toRaw(user.value),
+    apiToken: toRaw(apiToken.value),
+    timestamp: Math.floor(Date.now() / 1000),
+    project: toRaw(activeProject.value),
+    buckets: buckets,
+  };
+
+  console.log("Saving migration state:");
+  console.log(migrationState);
+  await window.stateAPI.saveState(migrationState);
+
+  return;
+}
+
+/**
+ * Load the interrupted migration state if it exists
+ * @returns { (MigrationState | null) } - The state of the interrupted migration
+ */
+async function loadMigrationState() {
+  console.log("Loading migration state from default location.");
+
+  const migrationState = await window.stateAPI.loadState();
+
+  if (migrationState !== null) {
+    console.log("Found interrupted migration process. Continuing migration.");
+    console.log(migrationState);
+
+    // Enter the parameters from the migration state
+    user.value = migrationState.username;
+    activeProject.value = migrationState.project;
+    oldMigrateBuckets.value = migrationState.buckets;
+    apiToken.value = migrationState.apiToken;
+
+    migrationInterruptReason.value = interruptReasons.quitApp;
+    userExists.value = true;
+  }
+}
+
+/**
+ * Handle the project discovery from unscoped token
+ * @param {string} unscoped - unscoped token of the user logging in
+ * @param {string} username - name of the user logging in
+ */
+async function handleProjectDiscovery(unscoped) {
   unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
 
-  if (migrationInterrupted.value) {
+  if (migrationInterruptReason.value) {
+    console.log(activeProject.value);
+    scopedToken.value = await getScopedToken(unscopedToken.value, activeProject.value.id);
     step.value = 4;
   } else {
     step.value += 1;
   }
-
-  user.value = username;
   console.log(user.value);
   console.log(unscopedToken.value);
 }
 
-// Handle project selection
+/**
+ * Handle project selection
+ * @param {OpenstackProject} project - the project selected for scoping the token
+ */
 async function selectProjectAndScopeToken(project) {
   if (activeProject.value?.id !== project.id) {
     activeProject.value = project;
     scopedToken.value = await getScopedToken(unscopedToken.value, project.id);
     console.log(scopedToken.value);
   }
+
   step.value += 1;
 }
 
-// Handle API token addition
+/**
+ * Handle API token addition
+ * @param {string} token - SD Connect API token to be added
+ */
 async function handleAddAPIToken(token) {
   apiToken.value = token;
   console.log(apiToken.value);
@@ -138,7 +227,10 @@ async function handleAddAPIToken(token) {
   step.value += 1;
 }
 
-// Handle migrate bucket selection
+/**
+ * Handle migrate bucket selection
+ * @param {OpenstackBucket[]} buckets - buckets that are to be migrated
+ */
 async function handleSelectBuckets(buckets) {
   console.log(buckets);
   selectedBuckets.value = buckets;
@@ -146,18 +238,31 @@ async function handleSelectBuckets(buckets) {
   step.value += 1;
 }
 
-// Handle migrated buckets
+/**
+ * Handle migrated buckets
+ * @param {MigrationBucketList} buckets - buckets that were migrated
+ */
 async function handleBucketsMigrated(buckets) {
   migratedBuckets.value = buckets;
   console.log(migratedBuckets.value);
 
+  // Clear the migration state
+  await saveMigrationState(toRaw(buckets));
+  await window.stateAPI.finishState();
+
   step.value += 1;
 }
 
+/**
+ * Navigate back to the previous step
+ */
 function goBack() {
   step.value--;
 }
 
+/**
+ * Reset conversion UI state tracking values to start
+ */
 function startNewConversion() {
   step.value = 1;
   // reset values
@@ -167,24 +272,35 @@ function startNewConversion() {
   tokenRef.value.reset();
   scopedToken.value = "";
   selectedBuckets.value = [];
+  oldMigrateBuckets.value = [];
   migratedBuckets.value = [];
+  migrationInterruptReason.value = "";
 }
 
-function handleMigrationInterrupt() {
-  migrationInterrupted.value = true;
-  apiToken.value = "";
-  // TODO retrieve user, project, migration state
-  // Set vars accordingly
-  step.value = 0;
+async function handleMigrationError(error) {
+  migrationInterruptReason.value = error;
+
+  // Get buckets from migration state
+  const migrationState = await window.stateAPI.loadState();
+  if (migrationState !== null) {
+    oldMigrateBuckets.value = migrationState.buckets;
+  }
+
+  step.value = 4;
 }
 
 function handleReaddAPIToken(token) {
   apiToken.value = token;
-  migrationInterrupted.value = false;
+  handleContinueMigration();
 }
-function handleCancelMigration() {
-  //TODO cleanup
+
+function handleContinueMigration() {
+  migrationInterruptReason.value = "";
+}
+
+async function handleCancelMigration() {
   console.log("Migration cancelled");
+  await window.stateAPI.clearState();
   startNewConversion();
 }
 </script>

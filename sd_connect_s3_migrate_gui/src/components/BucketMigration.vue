@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, toRaw } from "vue";
 
 // transliteration – selected for transliteration unicode to ASCII while
 // minimizing the loss of meaning, seemed like the best alternative
@@ -58,7 +58,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { getSDConnectAPIEndpoint } from "../scripts/config";
-import { estimatedBytesPerSec, getTimeEstimate, migrationStages, timeout } from "../scripts/common";
+import { estimatedBytesPerSec, getTimeEstimate, interruptReasons, migrationStages, timeout } from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
@@ -80,15 +80,16 @@ import {
   removeProjectKeyFromWhitelist,
 } from "../scripts/sd-connect";
 
-const { buckets, scopedToken, project, s3address, sdApiToken } = defineProps([
+const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets } = defineProps([
   "buckets",
   "scopedToken",
   "project",
   "s3address",
   "sdApiToken",
+  "oldMigrateBuckets",
 ]);
 
-const emit = defineEmits(["buckets-migrated", "api-key-error"]);
+const emit = defineEmits(["buckets-migrated", "update-migration-state", "error"]);
 
 const totalSize = ref(0);
 const totalSizeDone = ref(0);
@@ -103,6 +104,7 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
 [
   {
     name: str
+    bytes: int
     totalObjects: int
     totalObjectsDone: int
     totalHeaders: int
@@ -131,25 +133,32 @@ let ec2;
 let client;
 
 onMounted(() => {
-  for (const bucket of buckets) {
-    totalSize.value += bucket.segmentsBytes ?? bucket.bytes;
+  if (oldMigrateBuckets.length > 0) {
+    migrateBuckets.value = oldMigrateBuckets;
+  } else {
+    for (const bucket of buckets) {
+      const bucketSize = bucket.segmentsBytes ?? bucket.bytes;
+      totalSize.value += bucketSize;
 
-    migrateBuckets.value.push({
-      name: bucket.name,
-      totalObjects: bucket.count,
-      totalObjectsDone: 0,
-      totalHeaders: bucket.count,
-      totalHeadersDone: 0,
-      currentlyMigrating: false,
-      currentlyMigratingFile: "",
-      sharingMigrated: false,
-      headersMigrated: false,
-      conversionNeed: bucket.conversionNeed,
-      objects: [],
-    });
+      migrateBuckets.value.push({
+        name: bucket.name,
+        bytes: bucketSize,
+        totalObjects: bucket.count,
+        totalObjectsDone: 0,
+        totalHeaders: bucket.count,
+        totalHeadersDone: 0,
+        currentlyMigrating: false,
+        currentlyMigratingFile: "",
+        sharingMigrated: false,
+        headersMigrated: false,
+        conversionNeed: bucket.conversionNeed,
+        objects: [],
+      });
+    }
+    console.log(totalSize.value);
+    console.log(migrateBuckets.value);
   }
-  console.log(totalSize.value);
-  console.log(migrateBuckets.value);
+
   // Migration started automatically on step
   beginMigration();
 });
@@ -208,6 +217,11 @@ async function migrateBucketHeaders(bucket) {
     return;
   }
 
+  // Skip header copy if already done
+  if (bucket.headersMigrated) {
+    return;
+  }
+
   // Simulate header migration if there's no SD Connect API URL
   // We're first testing just the object storage side of things, as it's preferable
   // to test header migration on dev before starting to migrate production headers
@@ -239,7 +253,10 @@ async function migrateBucketHeaders(bucket) {
   // Migrate bucket headers for objects that require it
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
-    if (object.headerDone) continue;
+    if (object.headerDone) {
+      console.log("Skipping an object header that's already marked as done.");
+      continue;
+    }
 
     // Retrieve the previous header
     let header;
@@ -266,6 +283,8 @@ async function migrateBucketHeaders(bucket) {
 
     bucket.totalHeadersDone++;
     object.headerDone = true;
+
+    emit("update-migration-state", toRaw(migrateBuckets.value));
   }
 
   // Unlist the project public key
@@ -441,6 +460,7 @@ async function migrateBucketObjects(bucket) {
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.contentDone) {
+      console.log("Skipping an already done object.");
       bucket.totalObjectsDone++;
       totalSizeDone.value += object.bytes;
       continue;
@@ -532,7 +552,11 @@ async function migrateBucketObjects(bucket) {
     }
 
     bucket.totalObjectsDone++;
+
+    emit("update-migration-state", toRaw(migrateBuckets.value));
   }
+
+  bucket.currentlyMigratingFile = "";
 }
 
 /**
@@ -649,6 +673,8 @@ async function migrateBucketSharing(bucket) {
 
   // Mark sharing as migrated
   bucket.sharingMigrated = true;
+
+  emit("update-migration-state", toRaw(migrateBuckets.value));
 }
 
 /**
@@ -683,39 +709,59 @@ async function beginMigration() {
   console.log("Begun migration.");
 
   // Initialize the ec2 credentials and the client
-  ec2 = await getEC2Credentials(scopedToken, project.id);
-  client = new S3Client({
-    region: "us-east-1",
-    endpoint: s3address,
-    credentials: {
-      accessKeyId: ec2.access,
-      secretAccessKey: ec2.secret,
-    },
-  });
+  try {
+    ec2 = await getEC2Credentials(scopedToken, project.id);
+    client = new S3Client({
+      region: "us-east-1",
+      endpoint: s3address,
+      credentials: {
+        accessKeyId: ec2.access,
+        secretAccessKey: ec2.secret,
+      },
+    });
+  } catch (e) {
+    console.log("Failed to create an S3 client. Reason/traceback:");
+    console.log(e);
+    emit("error", interruptReasons.migrationError);
+    return;
+  }
 
   // Iterate over all buckets flagged for migration
+  if (oldMigrateBuckets.length > 0) {
+    // Wipe the old state content doneness values to preserve correct rendering
+    migrateBuckets.value.totalSizeDone = 0;
+    for (const bucket of migrateBuckets.value) {
+      bucket.totalObjectsDone = 0;
+    }
+  } else {
+    for (const bucket of migrateBuckets.value) {
+      // Retrieve the list of bucket objects
+      try {
+        let objects = await getObjects(scopedToken, bucket.name);
+        // Format the object listing according to our requirements
+        bucket.objects = objects.map((object) => {
+          return {
+            key: object.name,
+            bytes: object.bytes ?? 0,
+            headerDone: false,
+            contentDone: false,
+            isSegmented: object.bytes == 0 ? true : false,
+            manifestBackup: "",
+          };
+        });
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  // Cache the current state of the buckets
+  emit("update-migration-state", toRaw(migrateBuckets.value));
+
   for (const bucket of migrateBuckets.value) {
     currentStage.value = migrationStages.starting;
     // Flag the bucket as actively migrated
     bucket.currentlyMigrating = true;
-
-    // Retrieve the list of bucket objects
-    try {
-      let objects = await getObjects(scopedToken, bucket.name);
-      // Format the object listing according to our requirements
-      bucket.objects = objects.map((object) => {
-        return {
-          key: object.name,
-          bytes: object.bytes ?? 0,
-          headerDone: false,
-          contentDone: false,
-          isSegmented: object.bytes == 0 ? true : false,
-          manifestBackup: "",
-        };
-      });
-    } catch {
-      continue;
-    }
 
     // Ensure that the bucket exists
     try {
@@ -723,6 +769,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -735,6 +782,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket sharing migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -746,6 +794,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket header migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
 
@@ -757,6 +806,7 @@ async function beginMigration() {
     } catch (e) {
       console.log("Bucket objects migration failed. Reason/traceback:");
       console.log(e);
+      emit("error", interruptReasons.migrationError);
       return;
     }
     bucket.currentlyMigrating = false;
@@ -767,9 +817,9 @@ async function beginMigration() {
 }
 
 function checkError(error) {
-  // If Unauthorized, signal to relogin and prompt for new API token
+  // If Unauthorized, signal prompt for new API token
   if (error?.status === 401 || error?.cause?.status === 401) {
-    emit("api-key-error");
+    emit("error", interruptReasons.apiKeyError);
     throw new Error("Migration interrupted due to expired or invalid API key.");
   }
 }
