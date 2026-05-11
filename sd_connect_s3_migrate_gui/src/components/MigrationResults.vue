@@ -41,7 +41,7 @@
     <div v-if="deleteSuccess === false">
       <c-alert type="error">Error deleting original incompatible buckets.</c-alert>
     </div>
-    <MigrationBucketTable :buckets="migratedBuckets" />
+    <c-data-table hide-footer :headers="headers" :data="tableData"></c-data-table>
     <c-row v-if="alert === ''" gap="16" justify="end">
       <c-button @click="quit" outlined>Close application</c-button>
       <c-button @click="startConversion">Start new conversion</c-button>
@@ -50,9 +50,8 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import MigrationBucketTable from "./MigrationBucketTable.vue";
-import { timeout } from "../scripts/common";
+import { computed, ref } from "vue";
+import { getReadableSize, timeout } from "../scripts/common";
 
 const { project, migratedBuckets } = defineProps(["project", "migratedBuckets"]);
 const emit = defineEmits(["start-new-conversion"]);
@@ -88,6 +87,41 @@ function quit() {
 function startConversion() {
   emit("start-new-conversion");
 }
+
+/* TABLE */
+const headers = [
+  { key: "name_before", align: "center", value: "Name before", sortable: false },
+  { key: "name_after", align: "center", value: "Name after", sortable: false },
+  { key: "size_before", align: "center", value: "Size before", sortable: false },
+  { key: "size_after", align: "center", value: "Size after", sortable: false },
+  { key: "items_before", align: "center", value: "Items before", sortable: false },
+  { key: "items_after", align: "center", value: "Items after", sortable: false },
+];
+
+const tableData = computed(() => {
+  return migratedBuckets.map((bucket) => {
+    return {
+      name_before: {
+        value: bucket.name,
+      },
+      name_after: {
+        value: bucket.convertedName,
+      },
+      size_before: {
+        value: getReadableSize(bucket.bytes),
+      },
+      size_after: {
+        value: getReadableSize(bucket.bytesDone),
+      },
+      items_before: {
+        value: bucket.totalObjects,
+      },
+      items_after: {
+        value: bucket.totalObjectsDone,
+      },
+    };
+  });
+});
 </script>
 <style scoped>
 .step-content > div,

@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import { estimatedBytesPerSec, getTimeEstimate, interruptReasons } from "../scripts/common";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
@@ -78,28 +78,10 @@ const emit = defineEmits(["got-token", "cancel-migration", "continue-migration"]
 const apiToken = ref("");
 const showError = ref(false);
 const clickedCancel = ref(false);
-const bytesLeft = ref(0);
-
-onMounted(() => {
-  // Buckets from loaded migration state
-  // Or selectedBuckets when api key error occurs before saving migration state
-  for (const bucket of buckets) {
-    // Non-migrated segmented objects will have size 0
-    // Subtract migrated bytes
-    let bucketBytesLeft = bucket.bytes;
-    if (bucket?.objects) {
-      for (const object of bucket.objects) {
-        if (object.contentDone) {
-          bucketBytesLeft -= object.bytes;
-        }
-      }
-    }
-    bytesLeft.value += bucketBytesLeft;
-  }
-});
 
 const estimatedTime = computed(() => {
-  return Math.ceil(bytesLeft.value / estimatedBytesPerSec);
+  const bytesLeft = buckets.reduce((sum, bucket) => sum + (bucket.bytes - (bucket.bytesDone ?? 0)), 0);
+  return Math.ceil(bytesLeft / estimatedBytesPerSec);
 });
 
 function handleContinue() {
