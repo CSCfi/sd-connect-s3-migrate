@@ -225,6 +225,12 @@ async function migrateBucketHeaders(bucket) {
     return;
   }
 
+  // Skip header copy if no objects in bucket
+  if (!bucket.objects.length) {
+    bucket.headersMigrated = true;
+    return;
+  }
+
   // Simulate header migration if there's no SD Connect API URL
   // We're first testing just the object storage side of things, as it's preferable
   // to test header migration on dev before starting to migrate production headers
@@ -299,6 +305,7 @@ async function migrateBucketHeaders(bucket) {
     console.log(e);
     return;
   }
+  bucket.headersMigrated = true;
 }
 
 /**
