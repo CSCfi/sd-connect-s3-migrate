@@ -183,11 +183,8 @@ function convertBucketName(bucket) {
     slug = slug.substring(0, 62);
   }
 
-  // If the slug contains underscores, replace them with a dash
-  slug = slug.replaceAll("_", "-");
-  // A full stop is also a possibility, but shouldn't be able to exist
-  // in swift buckets anyway, not covering it for now
-
+  // If the slug contains underscores or periods, replace them with a dash
+  slug = slug.replaceAll(/[_.]/g, "-");
   // Return the lowercase version of the result
   slug = slug.toLowerCase();
 
