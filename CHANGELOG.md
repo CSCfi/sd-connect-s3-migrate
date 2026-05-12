@@ -9,12 +9,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- (users) Updated text on Conversion in Process step (#72)
+- (users) Updated text on API key step (#67)
 - adjusted the estimated migration speed
 - (users) updated time estimation
 - (users) Updated login page text (#64)
 
 ### Added
 
+- (users) Added progress bars in Conversion step (#71)
+- (users) Added an alert for projects over 1 TB (#66)
 - (users) The migration can now be resumed if the tool is closed prematurely, or crashes while migrating
 - Add the migration state typing in JSDoc format
 - Add the migration state hardcoded save location in the user `Documents` folder
