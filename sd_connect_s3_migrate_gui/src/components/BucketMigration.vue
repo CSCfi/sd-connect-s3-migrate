@@ -5,16 +5,14 @@
       {{ project?.name }}
     </p>
     <h1>Conversion in process</h1>
-    <p>
-      Your buckets are being copied and converted to be compatible with SD Connect v3. This process may take a while.
-      You will see converted buckets within SD Connect UI with suffix "{{ bucketSuffix }}".
-    </p>
+    <p>Your buckets are being copied and converted to be compatible with the new version of SD Connect.</p>
     <div class="alert-wrapper">
       <c-alert type="error">
         <c-row gap="100" align="center">
-          <span class="alert-text">
-            We recommend that you don't upload files to this bucket to ensure smooth conversion process.
-          </span>
+          <ul class="alert-text">
+            <li>Please wait for confirmation that conversion has been completed.</li>
+            <li>We recommend that you don't upload files to this bucket to ensure smooth conversion process.</li>
+          </ul>
           <c-link
             underline
             href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#35-during-conversion"
@@ -826,6 +824,7 @@ function checkError(error) {
 </script>
 <style scoped>
 .alert-text {
+  margin: 0;
   flex: 1;
 }
 </style>

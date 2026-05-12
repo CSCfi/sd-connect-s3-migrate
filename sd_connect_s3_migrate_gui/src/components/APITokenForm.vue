@@ -5,7 +5,18 @@
       {{ project?.name }}
     </p>
     <h1>Add temporary API key</h1>
-    <p>Create your API key via SD Connect user interface. Navigate to Support -> Create API keys.</p>
+    <p>
+      Create your API key via
+      <c-link underline :href="sdConnectLink" target="_blank">
+        SD Connect
+        <c-icon :path="mdiOpenInNew" />
+      </c-link>
+    </p>
+    <ol>
+      <li>Login and select the project you are converting.</li>
+      <li>Navigate to Support in the top bar and select Create API keys.</li>
+      <li>After creating the key, copy it and paste it to the field below.</li>
+    </ol>
     <c-link
       underline
       href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#33-add-projects-temporary-api-key"
@@ -23,21 +34,28 @@
       ></c-text-field>
     </div>
     <c-row justify="space-between">
-      <c-button outlined @click="goBack" @keyup.enter="goBack">Cancel</c-button>
+      <c-button outlined @click="goBack" @keyup.enter="goBack">Back</c-button>
       <c-button @click="emitToken" @keyup.enter="emitToken">Continue</c-button>
     </c-row>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { mdiOpenInNew } from "@mdi/js";
+import { getSDConnectAPIEndpoint } from "../scripts/config";
 
 const { project } = defineProps(["project"]);
 
 const emit = defineEmits(["got-token", "go-back"]);
 
 defineExpose({ reset });
+
+const sdConnectLink = ref("");
+
+onMounted(async () => {
+  sdConnectLink.value = await getSDConnectAPIEndpoint();
+});
 
 const apiToken = ref("");
 const showError = ref(false);

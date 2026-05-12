@@ -64,7 +64,7 @@
       </c-alert>
     </div>
     <c-row justify="space-between">
-      <c-button outlined @click="emitBack" @keyup.enter="emitBack">Cancel</c-button>
+      <c-button outlined @click="emitBack" @keyup.enter="emitBack">Back</c-button>
       <c-button @click="selectBuckets" @keyup.enter="selectBuckets">Start conversion</c-button>
     </c-row>
     <c-toasts id="select-bucket-toasts"></c-toasts>
