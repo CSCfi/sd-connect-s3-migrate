@@ -24,6 +24,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Add the migration state hardcoded save location in the user `Documents` folder
 - (users) Added Re-enter API key view (#38)
 
+### Fixed
+
+- Convert dots to dashes in bucket names (#79)
+
 ## [2026.4.19] - 2026-04-24
 
 ### Fixed
