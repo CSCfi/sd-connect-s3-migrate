@@ -222,7 +222,7 @@ async function migrateBucketHeaders(bucket) {
   }
 
   // Skip header copy if already done
-  if (bucket.headersMigrated) {
+  if (bucket.headersMigrated && bucket.totalHeadersDone === bucket.totalHeaders) {
     return;
   }
 
@@ -274,21 +274,33 @@ async function migrateBucketHeaders(bucket) {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
       checkError(e);
-      console.log("Failed to retrieve header for object, continuing...");
+      console.log("Failed to retrieve header for object, retrying...");
       console.log(e);
-      // TODO: add proper error handling for header issues
-      bucket.totalHeadersDone++;
-      continue;
+      // Retry on failure
+      try {
+        header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
+      } catch (e) {
+        // Failure expected in some cases like v1 objects
+        console.log("Failed to retrieve header for object on retry, continuing...");
+        console.log(e);
+        continue;
+      }
     }
+
     try {
       await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
     } catch (e) {
       checkError(e);
-      console.log("Failed to add the header for object, continuing...");
+      console.log("Failed to add the header for object, retrying...");
       console.log(e);
-      // TODO: add proper error handling for header issues
-      bucket.totalHeadersDone++;
-      continue;
+      // Retry on failure
+      try {
+        await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
+      } catch (e) {
+        console.log("Failed to add the header for object on retry, continuing...");
+        console.log(e);
+        continue;
+      }
     }
 
     bucket.totalHeadersDone++;
