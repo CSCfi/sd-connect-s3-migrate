@@ -328,18 +328,18 @@ async function multipartCopyObject(bucket, key, manifest) {
       CopySource: `${segment_bucket}/${segment.name}`,
       Key: key,
       // SD Connect default object is signified by 8 digits, use that as part number
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
       UploadId: uploadId,
     });
-    const partCopyResp = await client.send(multipartCopyCommand);
+    await client.send(multipartCopyCommand);
 
     // Check that the checksums match with the part and original
-    console.log(partCopyResp?.Etag);
+    console.log(segment.hash);
     console.log(await getObjectEtag(scopedToken, segment_bucket, segment.name));
 
     multipartParts.push({
-      ETag: partCopyResp?.Etag,
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
+      ETag: segment.hash,
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
     });
   }
 
@@ -349,8 +349,8 @@ async function multipartCopyObject(bucket, key, manifest) {
     Key: key,
     MultipartUpload: {
       Parts: multipartParts,
-      UploadId: uploadId,
     },
+    UploadId: uploadId,
   });
   const finishMultipartResponse = await client.send(finishMultipart);
   console.log(finishMultipartResponse);
