@@ -17,6 +17,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Prevent app suspension during migration (#60)
 - Check existing bucket policy before sharing migration (#74)
 - (users) Added progress bars in Conversion step (#71)
 - (users) Added an alert for projects over 1 TB (#66)
