@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, useTemplateRef, toRaw, onMounted } from "vue";
+import { computed, ref, useTemplateRef, toRaw, onMounted, watch } from "vue";
 
 // Component imports
 import Login from "../components/LoginForm.vue";
@@ -133,6 +133,21 @@ onMounted(() => {
   loadMigrationState().then(() => {
     console.log("Scheduled loading interrupted migration.");
   });
+});
+
+const preventSuspend = computed(() => {
+  return step.value === 4 && migrationInterruptReason.value === "";
+});
+
+watch(preventSuspend, (newValue) => {
+  if (newValue) {
+    // Communicate to main channel to prevent app suspension
+    console.log("Start app suspension prevention");
+    window.powerSaveBlocker.start();
+  } else {
+    console.log("Stop app suspension prevention");
+    window.powerSaveBlocker.stop();
+  }
 });
 
 /**
