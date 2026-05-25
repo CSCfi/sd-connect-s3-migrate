@@ -399,7 +399,6 @@ async function conventionalCopyObject(bucket, key, size) {
       });
       const putObjectResp = await client.send(putObject);
       console.log(putObjectResp);
-
     } catch (e) {
       console.log(e);
     }
@@ -583,7 +582,7 @@ async function migrateBucketObjects(bucket) {
         const conventionalCopyParts = await conventionalCopyObject(bucket.name, object.key, objectMeta.size);
 
         // conventional copy parts can be either a single checksum or a list of parts
-        if (typeof(conventionalCopyParts) == "string") {
+        if (typeof conventionalCopyParts == "string") {
           object.checksumSha256 = conventionalCopyParts;
         } else {
           object.multipartParts = conventionalCopyParts;
