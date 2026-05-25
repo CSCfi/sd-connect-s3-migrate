@@ -42,6 +42,7 @@ import { computed, onMounted, ref, toRaw } from "vue";
 // Dependency quickly audited in approx three hours on 26.1.2026, Signed: Sampsa Penna
 import { slugify } from "transliteration";
 import {
+  AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateBucketCommand,
   CreateMultipartUploadCommand,
@@ -328,32 +329,46 @@ async function multipartCopyObject(bucket, key, manifest) {
       CopySource: `${segment_bucket}/${segment.name}`,
       Key: key,
       // SD Connect default object is signified by 8 digits, use that as part number
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
+      // This may result in parts indexed from 2 in v2 files, as v2 files don't have
+      // segment zero. As starting from 2 doesn't break the multipart, but starting
+      // from zero does, we need the +1 to allow concatenating v1 files.
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
       UploadId: uploadId,
     });
-    const partCopyResp = await client.send(multipartCopyCommand);
+    await client.send(multipartCopyCommand);
 
     // Check that the checksums match with the part and original
-    console.log(partCopyResp?.Etag);
+    console.log(segment.hash);
     console.log(await getObjectEtag(scopedToken, segment_bucket, segment.name));
 
     multipartParts.push({
-      ETag: partCopyResp?.Etag,
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]),
+      ETag: segment.hash,
+      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
     });
   }
 
-  // Finish the multipart copy
-  const finishMultipart = new CompleteMultipartUploadCommand({
-    Bucket: convertBucketName(bucket),
-    Key: key,
-    MultipartUpload: {
-      Parts: multipartParts,
+  try {
+    // Finish the multipart copy
+    const finishMultipart = new CompleteMultipartUploadCommand({
+      Bucket: convertBucketName(bucket),
+      Key: key,
+      MultipartUpload: {
+        Parts: multipartParts,
+      },
       UploadId: uploadId,
-    },
-  });
-  const finishMultipartResponse = await client.send(finishMultipart);
-  console.log(finishMultipartResponse);
+    });
+    const finishMultipartResponse = await client.send(finishMultipart);
+    console.log(finishMultipartResponse);
+  } catch (err) {
+    // Abort multipart copy
+    console.log("Failed to complete multipart upload", err);
+    const abortMultipart = new AbortMultipartUploadCommand({
+      Bucket: convertBucketName(bucket),
+      Key: key,
+      UploadId: uploadId,
+    });
+    await client.send(abortMultipart);
+  }
 }
 
 /**
@@ -429,17 +444,28 @@ async function conventionalCopyObject(bucket, key, size) {
 
   console.log(multipartParts);
 
-  // Finish the multipart copy
-  const finishMultipart = new CompleteMultipartUploadCommand({
-    Bucket: convertBucketName(bucket),
-    Key: key,
-    MultipartUpload: {
-      Parts: multipartParts,
-    },
-    UploadId: uploadId,
-  });
-  const finishMultipartResponse = await client.send(finishMultipart);
-  console.log(finishMultipartResponse);
+  try {
+    // Finish the multipart copy
+    const finishMultipart = new CompleteMultipartUploadCommand({
+      Bucket: convertBucketName(bucket),
+      Key: key,
+      MultipartUpload: {
+        Parts: multipartParts,
+      },
+      UploadId: uploadId,
+    });
+    const finishMultipartResponse = await client.send(finishMultipart);
+    console.log(finishMultipartResponse);
+  } catch (err) {
+    // Abort multipart copy
+    console.log("Failed to complete multipart upload", err);
+    const abortMultipart = new AbortMultipartUploadCommand({
+      Bucket: convertBucketName(bucket),
+      Key: key,
+      UploadId: uploadId,
+    });
+    await client.send(abortMultipart);
+  }
 }
 
 /**
