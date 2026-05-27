@@ -359,6 +359,8 @@ async function multipartCopyObject(bucket, key, manifest) {
     });
     const finishMultipartResponse = await client.send(finishMultipart);
     console.log(finishMultipartResponse);
+
+    return multipartParts;
   } catch (err) {
     // Abort multipart copy
     console.log("Failed to complete multipart upload", err);
@@ -383,11 +385,17 @@ async function conventionalCopyObject(bucket, key, size) {
     console.log(`Copying ${key} as one chunk.`);
     let object = await getObject(scopedToken, bucket, key);
 
+    // Calculate the object checksum using sha256 (no native md5 in browser)
+    const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);
+    const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
+    console.log(`Full object checksum (sha256): ${hashSha256}`);
+
     try {
       const putObject = new PutObjectCommand({
         Body: object,
         Bucket: convertBucketName(bucket),
         Key: key,
+        ChecksumSHA256: hashSha256,
       });
       const putObjectResp = await client.send(putObject);
       console.log(putObjectResp);
@@ -395,7 +403,7 @@ async function conventionalCopyObject(bucket, key, size) {
       console.log(e);
     }
 
-    return;
+    return hashSha256;
   }
   console.log(`Copying ${key} in multiple parts.`);
 
@@ -422,6 +430,11 @@ async function conventionalCopyObject(bucket, key, size) {
     console.log(`Getting the next part of object ${key}`);
     let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
 
+    // Calculate the object checksum using sha256 (no native md5 in browser)
+    const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);
+    const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
+    console.log(`Object part ${i} checksum (sha256): ${hashSha256}`);
+
     try {
       const putObjectPart = new UploadPartCommand({
         Body: object,
@@ -429,12 +442,14 @@ async function conventionalCopyObject(bucket, key, size) {
         Key: key,
         PartNumber: partNumber + 1,
         UploadId: uploadId,
+        ChecksumSHA256: hashSha256,
       });
       const multipartPartResp = await client.send(putObjectPart);
       console.log(multipartPartResp);
       multipartParts.push({
         PartNumber: partNumber + 1,
         ETag: multipartPartResp.ETag.replaceAll('"', ""),
+        ChecksumSHA256: hashSha256,
       });
       partNumber++;
     } catch (e) {
@@ -456,6 +471,8 @@ async function conventionalCopyObject(bucket, key, size) {
     });
     const finishMultipartResponse = await client.send(finishMultipart);
     console.log(finishMultipartResponse);
+
+    return multipartParts;
   } catch (err) {
     // Abort multipart copy
     console.log("Failed to complete multipart upload", err);
@@ -554,14 +571,23 @@ async function migrateBucketObjects(bucket) {
       try {
         const resp = await client.send(objectAccessCommand);
         console.log("Copying object using multipart.");
-        await multipartCopyObject(bucket.name, object.key, manifest);
+        const multipartParts = await multipartCopyObject(bucket.name, object.key, manifest);
+        object.multipartParts = multipartParts;
         objectSize = resp.ContentLength ?? 0;
       } catch (e) {
         console.log(e);
         // If the object is inaccessible using S3 API, copy converntionally
         console.log("Copying the object conventionally");
         const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
-        await conventionalCopyObject(bucket.name, object.key, objectMeta.size);
+        const conventionalCopyParts = await conventionalCopyObject(bucket.name, object.key, objectMeta.size);
+
+        // conventional copy parts can be either a single checksum or a list of parts
+        if (typeof conventionalCopyParts == "string") {
+          object.checksumSha256 = conventionalCopyParts;
+        } else {
+          object.multipartParts = conventionalCopyParts;
+        }
+
         objectSize = objectMeta.size ?? 0;
       }
       if (object.bytes === 0) object.bytes = objectSize;
@@ -579,6 +605,21 @@ async function migrateBucketObjects(bucket) {
   }
 
   bucket.currentlyMigratingFile = "";
+
+  // Generate the bucket migration report
+  const migrationReport = JSON.stringify(bucket);
+  try {
+    const putReportCommand = new PutObjectCommand({
+      Body: migrationReport,
+      Bucket: convertBucketName(bucket.name),
+      Key: "migration-report-latest.json",
+    });
+    const reportResp = await client.send(putReportCommand);
+    console.log(reportResp);
+  } catch (e) {
+    console.log("Caught error when pushing migration success report.");
+    console.log(e);
+  }
 }
 
 /**
