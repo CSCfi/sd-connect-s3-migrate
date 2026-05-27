@@ -7,7 +7,7 @@
  * @property {string} key - The key of the object in object storage
  * @property {string} originalKey - The original key of the part in storage
  * @property {string} checksumSha256 - The sha1 hash of the part (optional)
- * @property {string} chekcsumMd5 - The md5 hash of the part (optional)
+ * @property {string} ETag - The md5 hash of the part (optional)
  */
 
 /**
@@ -19,7 +19,7 @@
  * @property {boolean} isSegmented - Flag if the object is segmented or normal
  * @property {string} manifestBackup - Backup of the large object manifest string
  * @property {string} checksumSha256 - The sha1 hash of the object (optional)
- * @property {string} chekcsumMd5 - The md5 hash of the object (optional)
+ * @property {string} ETag - The md5 hash of the object (optional)
  * @property {MigrationObjectPart[]} multipartParts - The multipart parts if the object is multipart
  */
 
