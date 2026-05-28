@@ -67,6 +67,7 @@ import {
   getObjectEtag,
   getObjectMeta,
   getObjects,
+  putManifestObject,
 } from "../scripts/openstack";
 import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
@@ -221,7 +222,7 @@ async function migrateBucketHeaders(bucket) {
   }
 
   // Skip header copy if already done
-  if (bucket.headersMigrated) {
+  if (bucket.headersMigrated && bucket.totalHeadersDone === bucket.totalHeaders) {
     return;
   }
 
@@ -273,21 +274,33 @@ async function migrateBucketHeaders(bucket) {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
       checkError(e);
-      console.log("Failed to retrieve header for object, continuing...");
+      console.log("Failed to retrieve header for object, retrying...");
       console.log(e);
-      // TODO: add proper error handling for header issues
-      bucket.totalHeadersDone++;
-      continue;
+      // Retry on failure
+      try {
+        header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
+      } catch (e) {
+        // Failure expected in some cases like v1 objects
+        console.log("Failed to retrieve header for object on retry, continuing...");
+        console.log(e);
+        continue;
+      }
     }
+
     try {
       await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
     } catch (e) {
       checkError(e);
-      console.log("Failed to add the header for object, continuing...");
+      console.log("Failed to add the header for object, retrying...");
       console.log(e);
-      // TODO: add proper error handling for header issues
-      bucket.totalHeadersDone++;
-      continue;
+      // Retry on failure
+      try {
+        await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
+      } catch (e) {
+        console.log("Failed to add the header for object on retry, continuing...");
+        console.log(e);
+        continue;
+      }
     }
 
     bucket.totalHeadersDone++;
@@ -319,48 +332,55 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
   let segment_bucket = manifest.slice(0, manifest.indexOf("/"));
   let segment_prefix = manifest.slice(manifest.indexOf("/") + 1);
 
-  // Retrieve a list of the current object segments
-  const segments = await getObjects(scopedToken, segment_bucket, segment_prefix);
-  console.log(segments);
+  let uploadId;
+  let segments;
 
-  // Copy the segments as multipart parts
-  const startMultipart = new CreateMultipartUploadCommand({
-    Bucket: convertedBucket,
-    Key: key,
-  });
-  // Get the upload id
-  const multipartResp = await client.send(startMultipart);
-  const uploadId = multipartResp?.UploadId;
-  if (!uploadId) return;
+  try {
+    // Retrieve a list of the current object segments
+    segments = await getObjects(scopedToken, segment_bucket, segment_prefix);
+    console.log(segments);
 
-  // Cache for the multipart parts
-  let multipartParts = [];
-
-  for (const segment of segments) {
-    const multipartCopyCommand = new UploadPartCopyCommand({
+    // Copy the segments as multipart parts
+    const startMultipart = new CreateMultipartUploadCommand({
       Bucket: convertedBucket,
-      CopySource: `${segment_bucket}/${segment.name}`,
       Key: key,
-      // SD Connect default object is signified by 8 digits, use that as part number
-      // This may result in parts indexed from 2 in v2 files, as v2 files don't have
-      // segment zero. As starting from 2 doesn't break the multipart, but starting
-      // from zero does, we need the +1 to allow concatenating v1 files.
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
-      UploadId: uploadId,
     });
-    await client.send(multipartCopyCommand);
-
-    // Check that the checksums match with the part and original
-    console.log(segment.hash);
-    console.log(await getObjectEtag(scopedToken, segment_bucket, segment.name));
-
-    multipartParts.push({
-      ETag: segment.hash,
-      PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
-    });
+    // Get the upload id
+    const multipartResp = await client.send(startMultipart);
+    uploadId = multipartResp.UploadId;
+  } catch (e) {
+    console.log("No multipart id for object, aborting.");
+    throw e;
   }
 
   try {
+    // Cache for the multipart parts
+    let multipartParts = [];
+
+    for (const segment of segments) {
+      const multipartCopyCommand = new UploadPartCopyCommand({
+        Bucket: convertedBucket,
+        CopySource: `${segment_bucket}/${segment.name}`,
+        Key: key,
+        // SD Connect default object is signified by 8 digits, use that as part number
+        // This may result in parts indexed from 2 in v2 files, as v2 files don't have
+        // segment zero. As starting from 2 doesn't break the multipart, but starting
+        // from zero does, we need the +1 to allow concatenating v1 files.
+        PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
+        UploadId: uploadId,
+      });
+      await client.send(multipartCopyCommand);
+
+      // Check that the checksums match with the part and original
+      console.log(segment.hash);
+      console.log(await getObjectEtag(scopedToken, segment_bucket, segment.name));
+
+      multipartParts.push({
+        ETag: segment.hash,
+        PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
+      });
+    }
+
     // Finish the multipart copy
     const finishMultipart = new CompleteMultipartUploadCommand({
       Bucket: convertedBucket,
@@ -376,13 +396,14 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
     return multipartParts;
   } catch (err) {
     // Abort multipart copy
-    console.log("Failed to complete multipart upload", err);
+    console.log("Failed to complete multipart upload");
     const abortMultipart = new AbortMultipartUploadCommand({
       Bucket: convertedBucket,
       Key: key,
       UploadId: uploadId,
     });
     await client.send(abortMultipart);
+    throw err;
   }
 }
 
@@ -404,52 +425,50 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
     const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
     console.log(`Full object checksum (sha256): ${hashSha256}`);
 
-    try {
-      const putObject = new PutObjectCommand({
-        Body: object,
-        Bucket: convertedBucket,
-        Key: key,
-        ChecksumSHA256: hashSha256,
-      });
-      const putObjectResp = await client.send(putObject);
-      console.log(putObjectResp);
-    } catch (e) {
-      console.log(e);
-    }
+    const putObject = new PutObjectCommand({
+      Body: object,
+      Bucket: convertedBucket,
+      Key: key,
+      ChecksumSHA256: hashSha256,
+    });
+    const putObjectResp = await client.send(putObject);
+    console.log(putObjectResp);
 
     return hashSha256;
   }
   console.log(`Copying ${key} in multiple parts.`);
 
   // Otherwise, copy object in 100 MiB parts using s3 multipart
-  const startMultipart = new CreateMultipartUploadCommand({
-    Bucket: convertedBucket,
-    Key: key,
-  });
-  // Get the upload id
-  const multipartResp = await client.send(startMultipart);
-  console.log(multipartResp);
-  const uploadId = multipartResp?.UploadId;
-  if (!uploadId) {
+  let uploadId;
+  try {
+    const startMultipart = new CreateMultipartUploadCommand({
+      Bucket: convertedBucket,
+      Key: key,
+    });
+    // Get the upload id
+    const multipartResp = await client.send(startMultipart);
+    console.log(multipartResp);
+    uploadId = multipartResp.UploadId;
+  } catch (e) {
     console.log("No multipart id for object, aborting.");
-    return;
+    throw e;
   }
 
-  // Cache for the multipart parts
-  let multipartParts = [];
-  let partNumber = 0;
+  try {
+    // Cache for the multipart parts
+    let multipartParts = [];
+    let partNumber = 0;
 
-  for (let i = 0; i < size; i = i + 100 * 1024 * 1024) {
-    // Get the next 100 MiB of the object (using inclusive range)
-    console.log(`Getting the next part of object ${key}`);
-    let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+    for (let i = 0; i < size; i = i + 100 * 1024 * 1024) {
+      // Get the next 100 MiB of the object (using inclusive range)
+      console.log(`Getting the next part of object ${key}`);
+      let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
 
-    // Calculate the object checksum using sha256 (no native md5 in browser)
-    const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);
-    const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
-    console.log(`Object part ${i} checksum (sha256): ${hashSha256}`);
+      // Calculate the object checksum using sha256 (no native md5 in browser)
+      const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);
+      const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
+      console.log(`Object part ${i} checksum (sha256): ${hashSha256}`);
 
-    try {
       const putObjectPart = new UploadPartCommand({
         Body: object,
         Bucket: convertedBucket,
@@ -466,14 +485,9 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
         ChecksumSHA256: hashSha256,
       });
       partNumber++;
-    } catch (e) {
-      console.log(e);
     }
-  }
+    console.log(multipartParts);
 
-  console.log(multipartParts);
-
-  try {
     // Finish the multipart copy
     const finishMultipart = new CompleteMultipartUploadCommand({
       Bucket: convertedBucket,
@@ -489,13 +503,14 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
     return multipartParts;
   } catch (err) {
     // Abort multipart copy
-    console.log("Failed to complete multipart upload", err);
+    console.log("Multipart upload failed, aborting");
     const abortMultipart = new AbortMultipartUploadCommand({
       Bucket: convertedBucket,
       Key: key,
       UploadId: uploadId,
     });
     await client.send(abortMultipart);
+    throw err;
   }
 }
 
@@ -559,7 +574,10 @@ async function migrateBucketObjects(bucket) {
     if (bucket.name != bucket.convertedName) copyNeeded = true;
     // If the object is segmented we need to copy the object
     let manifest = await checkObjectManifest(scopedToken, bucket.name, object.key);
-    if (manifest) copyNeeded = true;
+    if (manifest) {
+      copyNeeded = true;
+      object.manifestBackup = manifest;
+    }
 
     // Skip copying the object if it need not be copied
     if (!copyNeeded) {
@@ -590,7 +608,7 @@ async function migrateBucketObjects(bucket) {
         objectSize = resp.ContentLength ?? 0;
       } catch (e) {
         console.log(e);
-        // If the object is inaccessible using S3 API, copy converntionally
+        // If the object is inaccessible using S3 API, copy conventionally
         console.log("Copying the object conventionally");
         const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
         const conventionalCopyParts = await conventionalCopyObject(
@@ -614,9 +632,13 @@ async function migrateBucketObjects(bucket) {
       bucket.bytesDone += object.bytes;
       bucket.totalObjectsDone++;
     } catch (e) {
+      console.log("Conventional copy failed.");
       console.log(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
-      // TODO: revert to previous manifest
+      if (object.manifestBackup && bucket.name === bucket.convertedName) {
+        await putManifestObject(scopedToken, bucket.name, object.key, object.manifestBackup);
+        // bytesDone or totalObjectsDone not increased, user will see mismatch
+      }
     }
 
     emit("update-migration-state", toRaw(migrateBuckets.value));

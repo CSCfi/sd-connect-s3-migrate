@@ -335,6 +335,36 @@ export async function checkObjectManifest(token, bucket, key) {
 }
 
 /**
+ * Put the manifest object for a DLO
+ * @param {string} token - a scoped openstack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @param {string} manifest - DLO manifest
+ */
+export async function putManifestObject(token, bucket, key, manifest) {
+  try {
+    const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
+    const resp = await fetch(objectURL, {
+      method: "PUT",
+      headers: {
+        "X-Auth-Token": token,
+        "X-Object-Manifest": manifest,
+        "Content-Length": 0,
+      },
+    });
+    if (!resp.ok) {
+      const error = new Error("HTTP error");
+      error.status = resp.status;
+      throw error;
+    }
+    console.log(`Put manifest object for ${key} in ${bucket}`);
+  } catch (e) {
+    console.log(`Failed to put manifest object for ${key} in ${bucket}`);
+    console.log(e);
+  }
+}
+
+/**
  * Retrieve the required object metadata headers
  * @param {string} token - a scoped openstack auth token
  * @param {string} bucket - the bucket the object is in
