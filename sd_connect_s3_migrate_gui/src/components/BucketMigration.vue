@@ -187,23 +187,30 @@ const estimatedTime = computed(() => {
  * @param {bool} addRandomisedSuffix - flag to add a randomised suffix to avoid name collision
  */
 function convertBucketName(bucket, addRandomisedSuffix = false) {
-  // Convert to ascii slug, truncating to 63 characters
-  let slug = slugify(`${bucket}`, { trim: true }).substring(0, 63);
+  const minLength = 3;
+  const maxLength = 63;
 
-  // If the slug ends in a dash, drop it
-  if (slug[62] === "-") {
-    slug = slug.substring(0, 62);
-  }
+  // Convert to ascii slug, truncating to 63 characters
+  let slug = slugify(`${bucket}`, { trim: true }).substring(0, maxLength);
 
   // If the slug contains underscores or periods, replace them with a dash
   slug = slug.replaceAll(/[_.]/g, "-");
+
+  // Remove leading dashes
+  slug = slug.replace(/^-+/, "");
+
   // Return the lowercase version of the result
   slug = slug.toLowerCase();
 
-  const randomSuffix = "-" + crypto.randomUUID().substring(0, 4);
-
-  if (bucket == slug) return slug;
-  else return `${slug}${addRandomisedSuffix ? randomSuffix : ""}${bucketSuffix}`;
+  if (bucket === slug && slug.length >= minLength && slug[slug.length - 1] !== "-") return slug;
+  else {
+    const randomSuffix = "-" + crypto.randomUUID().substring(0, 4);
+    const suffix = `${addRandomisedSuffix ? randomSuffix : ""}${bucketSuffix}`;
+    if (slug.length + suffix.length > maxLength) {
+      slug = slug.substring(0, maxLength - suffix.length);
+    }
+    return `${slug}${suffix}`;
+  }
 }
 
 /**
