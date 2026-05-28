@@ -26,7 +26,9 @@
 /**
  * @typedef {Object} MigrationEntry
  * @property {string} name - Name of the bucket that is flagged to be migrated
+ * @property {string} convertedName - Name of the bucket after migration, compatible with S3
  * @property {number} bytes - Bucket size
+ * @property {number} bytesDone - The amount of bytes that have already been migrated
  * @property {number} totalObjects - The total amount of objects to be migrated
  * @property {number} totalObjectsDone - The amount of objects that have already been migrated
  * @property {number} totalHeaders - The total amount of headers to be migrated (typically same as amount of objects)

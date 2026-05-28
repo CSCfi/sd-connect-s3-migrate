@@ -91,8 +91,6 @@ const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets 
 
 const emit = defineEmits(["buckets-migrated", "update-migration-state", "error"]);
 
-const totalSize = ref(0);
-const totalSizeDone = ref(0);
 const bucketSuffix = "-conv";
 const currentStage = ref(migrationStages.starting);
 
@@ -104,7 +102,9 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
 [
   {
     name: str
+    convertedName: str
     bytes: int
+    bytesDone: int
     totalObjects: int
     totalObjectsDone: int
     totalHeaders: int
@@ -138,11 +138,12 @@ onMounted(() => {
   } else {
     for (const bucket of buckets) {
       const bucketSize = bucket.segmentsBytes ?? bucket.bytes;
-      totalSize.value += bucketSize;
 
       migrateBuckets.value.push({
         name: bucket.name,
+        convertedName: "",
         bytes: bucketSize,
+        bytesDone: 0,
         totalObjects: bucket.count,
         totalObjectsDone: 0,
         totalHeaders: bucket.count,
@@ -155,7 +156,6 @@ onMounted(() => {
         objects: [],
       });
     }
-    console.log(totalSize.value);
     console.log(migrateBuckets.value);
   }
 
@@ -166,7 +166,13 @@ onMounted(() => {
 const estimatedTime = computed(() => {
   // Not taking into account sharing or headers
   // or the fact that some objects may not need copying
-  const remaining = totalSize.value - totalSizeDone.value;
+  let totalSize = 0;
+  let totalSizeDone = 0;
+  migrateBuckets.value.forEach((bucket) => {
+    totalSize += bucket.bytes;
+    totalSizeDone += bucket.bytesDone;
+  });
+  const remaining = totalSize - totalSizeDone;
   return Math.ceil(remaining / estimatedBytesPerSec);
 });
 
@@ -205,7 +211,7 @@ function convertBucketName(bucket) {
  */
 async function migrateBucketHeaders(bucket) {
   // Skip header copy if the bucket name doesn't change
-  if (bucket.name == convertBucketName(bucket.name)) {
+  if (bucket.name == bucket.convertedName) {
     for (const object of bucket.objects) {
       bucket.totalHeadersDone++;
       object.headerDone = true;
@@ -216,6 +222,12 @@ async function migrateBucketHeaders(bucket) {
 
   // Skip header copy if already done
   if (bucket.headersMigrated) {
+    return;
+  }
+
+  // Skip header copy if no objects in bucket
+  if (!bucket.objects.length) {
+    bucket.headersMigrated = true;
     return;
   }
 
@@ -268,7 +280,7 @@ async function migrateBucketHeaders(bucket) {
       continue;
     }
     try {
-      await putFileHeader(sdApiToken, project.name, convertBucketName(bucket.name), object.key, header);
+      await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
     } catch (e) {
       checkError(e);
       console.log("Failed to add the header for object, continuing...");
@@ -293,15 +305,16 @@ async function migrateBucketHeaders(bucket) {
     console.log(e);
     return;
   }
+  bucket.headersMigrated = true;
 }
 
 /**
  *
- * @param {string} bucket - the name of the bucket the object is in
+ * @param {string} convertedBucket - s3 compatible name of bucket being migrated
  * @param {string} key - the key of the object to be copied
  * @param {string} manifest - the DLO manifest of the object from swift side
  */
-async function multipartCopyObject(bucket, key, manifest) {
+async function multipartCopyObject(convertedBucket, key, manifest) {
   // Split the manifest to a bucket and prefix part
   let segment_bucket = manifest.slice(0, manifest.indexOf("/"));
   let segment_prefix = manifest.slice(manifest.indexOf("/") + 1);
@@ -312,7 +325,7 @@ async function multipartCopyObject(bucket, key, manifest) {
 
   // Copy the segments as multipart parts
   const startMultipart = new CreateMultipartUploadCommand({
-    Bucket: convertBucketName(bucket),
+    Bucket: convertedBucket,
     Key: key,
   });
   // Get the upload id
@@ -325,7 +338,7 @@ async function multipartCopyObject(bucket, key, manifest) {
 
   for (const segment of segments) {
     const multipartCopyCommand = new UploadPartCopyCommand({
-      Bucket: convertBucketName(bucket),
+      Bucket: convertedBucket,
       CopySource: `${segment_bucket}/${segment.name}`,
       Key: key,
       // SD Connect default object is signified by 8 digits, use that as part number
@@ -350,7 +363,7 @@ async function multipartCopyObject(bucket, key, manifest) {
   try {
     // Finish the multipart copy
     const finishMultipart = new CompleteMultipartUploadCommand({
-      Bucket: convertBucketName(bucket),
+      Bucket: convertedBucket,
       Key: key,
       MultipartUpload: {
         Parts: multipartParts,
@@ -365,7 +378,7 @@ async function multipartCopyObject(bucket, key, manifest) {
     // Abort multipart copy
     console.log("Failed to complete multipart upload", err);
     const abortMultipart = new AbortMultipartUploadCommand({
-      Bucket: convertBucketName(bucket),
+      Bucket: convertedBucket,
       Key: key,
       UploadId: uploadId,
     });
@@ -376,10 +389,11 @@ async function multipartCopyObject(bucket, key, manifest) {
 /**
  *
  * @param {string} bucket - the name of the bucket the object is in
+ * @param {string} convertedBucket - s3 compatible name of bucket being migrated
  * @param {string} key - the key of the object to be copied
  * @param {number} size - object size
  */
-async function conventionalCopyObject(bucket, key, size) {
+async function conventionalCopyObject(bucket, convertedBucket, key, size) {
   // If the object is smaller than 200 MiB, copy it as a single object
   if (size < 200 * 1024 * 1024) {
     console.log(`Copying ${key} as one chunk.`);
@@ -393,7 +407,7 @@ async function conventionalCopyObject(bucket, key, size) {
     try {
       const putObject = new PutObjectCommand({
         Body: object,
-        Bucket: convertBucketName(bucket),
+        Bucket: convertedBucket,
         Key: key,
         ChecksumSHA256: hashSha256,
       });
@@ -409,7 +423,7 @@ async function conventionalCopyObject(bucket, key, size) {
 
   // Otherwise, copy object in 100 MiB parts using s3 multipart
   const startMultipart = new CreateMultipartUploadCommand({
-    Bucket: convertBucketName(bucket),
+    Bucket: convertedBucket,
     Key: key,
   });
   // Get the upload id
@@ -438,7 +452,7 @@ async function conventionalCopyObject(bucket, key, size) {
     try {
       const putObjectPart = new UploadPartCommand({
         Body: object,
-        Bucket: convertBucketName(bucket),
+        Bucket: convertedBucket,
         Key: key,
         PartNumber: partNumber + 1,
         UploadId: uploadId,
@@ -462,7 +476,7 @@ async function conventionalCopyObject(bucket, key, size) {
   try {
     // Finish the multipart copy
     const finishMultipart = new CompleteMultipartUploadCommand({
-      Bucket: convertBucketName(bucket),
+      Bucket: convertedBucket,
       Key: key,
       MultipartUpload: {
         Parts: multipartParts,
@@ -477,7 +491,7 @@ async function conventionalCopyObject(bucket, key, size) {
     // Abort multipart copy
     console.log("Failed to complete multipart upload", err);
     const abortMultipart = new AbortMultipartUploadCommand({
-      Bucket: convertBucketName(bucket),
+      Bucket: convertedBucket,
       Key: key,
       UploadId: uploadId,
     });
@@ -501,14 +515,14 @@ async function migrateBucketObjects(bucket) {
     if (object.contentDone) {
       console.log("Skipping an already done object.");
       bucket.totalObjectsDone++;
-      totalSizeDone.value += object.bytes;
+      bucket.bytesDone += object.bytes;
       continue;
     }
 
     // Skip objects that are just SD Connect v1 segments
     if (object.key.match(".segments")) {
       bucket.totalObjectsDone++;
-      totalSizeDone.value += object.bytes;
+      bucket.bytesDone += object.bytes;
       continue;
     }
 
@@ -542,7 +556,7 @@ async function migrateBucketObjects(bucket) {
 
     let copyNeeded = false;
     // If the bucket name changes we need to copy the object
-    if (bucket.name != convertBucketName(bucket.name)) copyNeeded = true;
+    if (bucket.name != bucket.convertedName) copyNeeded = true;
     // If the object is segmented we need to copy the object
     let manifest = await checkObjectManifest(scopedToken, bucket.name, object.key);
     if (manifest) copyNeeded = true;
@@ -551,7 +565,7 @@ async function migrateBucketObjects(bucket) {
     if (!copyNeeded) {
       object.contentDone = true;
       // size available when copying not needed
-      totalSizeDone.value += object.bytes;
+      bucket.bytesDone += object.bytes;
       bucket.totalObjectsDone++;
       continue;
     }
@@ -571,7 +585,7 @@ async function migrateBucketObjects(bucket) {
       try {
         const resp = await client.send(objectAccessCommand);
         console.log("Copying object using multipart.");
-        const multipartParts = await multipartCopyObject(bucket.name, object.key, manifest);
+        const multipartParts = await multipartCopyObject(bucket.convertedName, object.key, manifest);
         object.multipartParts = multipartParts;
         objectSize = resp.ContentLength ?? 0;
       } catch (e) {
@@ -579,7 +593,12 @@ async function migrateBucketObjects(bucket) {
         // If the object is inaccessible using S3 API, copy converntionally
         console.log("Copying the object conventionally");
         const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
-        const conventionalCopyParts = await conventionalCopyObject(bucket.name, object.key, objectMeta.size);
+        const conventionalCopyParts = await conventionalCopyObject(
+          bucket.name,
+          bucket.convertedName,
+          object.key,
+          objectMeta.size,
+        );
 
         // conventional copy parts can be either a single checksum or a list of parts
         if (typeof conventionalCopyParts == "string") {
@@ -592,14 +611,13 @@ async function migrateBucketObjects(bucket) {
       }
       if (object.bytes === 0) object.bytes = objectSize;
       object.contentDone = true;
-      totalSizeDone.value += object.bytes;
+      bucket.bytesDone += object.bytes;
+      bucket.totalObjectsDone++;
     } catch (e) {
       console.log(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
       // TODO: revert to previous manifest
     }
-
-    bucket.totalObjectsDone++;
 
     emit("update-migration-state", toRaw(migrateBuckets.value));
   }
@@ -635,8 +653,7 @@ async function migrateBucketSharing(bucket) {
     };
   }
   let currentPolicy;
-  const targetBucket = convertBucketName(bucket.name);
-  const isSameBucket = bucket.name === targetBucket;
+  const isSameBucket = bucket.name === bucket.convertedName;
   const receivers = new Set();
 
   // Step 1. Retrieve the bucket policy
@@ -663,11 +680,11 @@ async function migrateBucketSharing(bucket) {
   */
   if (!currentPolicy) {
     const policy = createEmptyPolicy();
-    const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs);
+    const statementsFromACL = generatePolicyStatementsFromACL(bucket.convertedName, ACLs);
     if (statementsFromACL.length) {
       policy.Statement.push(...statementsFromACL);
     }
-    await putBucketPolicy(targetBucket, policy);
+    await putBucketPolicy(bucket.convertedName, policy);
 
     /*
       Case 2. Bucket policy exists (i.e. shared before migration, after switch to S3)
@@ -678,10 +695,10 @@ async function migrateBucketSharing(bucket) {
     const currentStatements =
       currentPolicy?.Statement.filter((statement) => statement?.Sid === "GrantSDConnectSharedAccessToProject") || [];
     if (isSameBucket) {
-      const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs, currentStatements);
+      const statementsFromACL = generatePolicyStatementsFromACL(bucket.convertedName, ACLs, currentStatements);
       if (statementsFromACL.length) {
         currentPolicy.Statement.push(...statementsFromACL);
-        await putBucketPolicy(targetBucket, currentPolicy);
+        await putBucketPolicy(bucket.convertedName, currentPolicy);
       }
     } else {
       // NB Policy currently overwritten if target bucket already existed before migration
@@ -692,13 +709,13 @@ async function migrateBucketSharing(bucket) {
         receivers.add(receiver);
         const newStatement = {
           ...statement,
-          Resource: [`arn:aws:s3:::${targetBucket}`, `arn:aws:s3:::${targetBucket}/*`],
+          Resource: [`arn:aws:s3:::${bucket.convertedName}`, `arn:aws:s3:::${bucket.convertedName}/*`],
         };
         policy.Statement.push(newStatement);
       });
-      const statementsFromACL = generatePolicyStatementsFromACL(targetBucket, ACLs, currentStatements);
+      const statementsFromACL = generatePolicyStatementsFromACL(bucket.convertedName, ACLs, currentStatements);
       policy.Statement.push(...statementsFromACL);
-      await putBucketPolicy(targetBucket, policy);
+      await putBucketPolicy(bucket.convertedName, policy);
     }
   }
 
@@ -742,7 +759,7 @@ async function migrateBucketSharing(bucket) {
         }
 
         try {
-          await putSharingWhitelist(sdApiToken, project.name, targetBucket, [ids]);
+          await putSharingWhitelist(sdApiToken, project.name, bucket.convertedName, [ids]);
         } catch (e) {
           checkError(e);
           console.log("Failed to add project sharing whitelist.");
@@ -765,24 +782,25 @@ async function migrateBucketSharing(bucket) {
  * @param {string} bucket - name of the old bucket
  */
 async function createNewBucket(bucket) {
-  if (bucket != convertBucketName(bucket)) {
+  const convertedName = convertBucketName(bucket);
+  if (bucket != convertedName) {
     // Check if the bucket already exists and we have access
     try {
       const headBucket = new HeadBucketCommand({
-        Bucket: convertBucketName(bucket),
+        Bucket: convertedName,
       });
       await client.send(headBucket);
-      return;
     } catch (e) {
       console.log(e);
+      // The bucket didn't exist yet, try to create it
+      const createBucket = new CreateBucketCommand({
+        Bucket: convertedName,
+      });
+      await client.send(createBucket);
     }
-
-    // The bucket didn't exist yet, try to create it
-    const createBucket = new CreateBucketCommand({
-      Bucket: convertBucketName(bucket),
-    });
-    await client.send(createBucket);
+    return convertedName;
   }
+  return bucket;
 }
 
 /**
@@ -812,9 +830,9 @@ async function beginMigration() {
   // Iterate over all buckets flagged for migration
   if (oldMigrateBuckets.length > 0) {
     // Wipe the old state content doneness values to preserve correct rendering
-    migrateBuckets.value.totalSizeDone = 0;
     for (const bucket of migrateBuckets.value) {
       bucket.totalObjectsDone = 0;
+      bucket.bytesDone = 0;
     }
   } else {
     for (const bucket of migrateBuckets.value) {
@@ -848,7 +866,8 @@ async function beginMigration() {
 
     // Ensure that the bucket exists
     try {
-      await createNewBucket(bucket.name);
+      const convertedName = await createNewBucket(bucket.name);
+      bucket.convertedName = convertedName;
     } catch (e) {
       console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
       console.log(e);
