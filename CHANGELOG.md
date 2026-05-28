@@ -18,6 +18,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Retry header operations on failure (#76)
+- Revert previous manifest if object copy fails (#77)
 - (users) migration reports are now available in the migrated bucket after migration finishes.
 - Prevent app suspension during migration (#60)
 - Check existing bucket policy before sharing migration (#74)
