@@ -18,6 +18,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Prevent converted bucket name collision (#78)
 - Retry header operations on failure (#76)
 - Revert previous manifest if object copy fails (#77)
 - (users) migration reports are now available in the migrated bucket after migration finishes.
