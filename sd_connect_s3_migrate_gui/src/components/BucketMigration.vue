@@ -47,8 +47,10 @@ import {
   CreateBucketCommand,
   CreateMultipartUploadCommand,
   GetBucketPolicyCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListBucketsCommand,
   PutBucketPolicyCommand,
   PutObjectCommand,
   S3Client,
@@ -182,23 +184,33 @@ const estimatedTime = computed(() => {
 /**
  * Convert the bucket name to a compatible one with best effort
  * @param {string} bucket - the name of the bucket
+ * @param {bool} addRandomisedSuffix - flag to add a randomised suffix to avoid name collision
  */
-function convertBucketName(bucket) {
-  // Convert to ascii slug, truncating to 63 characters
-  let slug = slugify(`${bucket}`, { trim: true }).substring(0, 63);
+function convertBucketName(bucket, addRandomisedSuffix = false) {
+  const minLength = 3;
+  const maxLength = 63;
 
-  // If the slug ends in a dash, drop it
-  if (slug[62] === "-") {
-    slug = slug.substring(0, 62);
-  }
+  // Convert to ascii slug, truncating to 63 characters
+  let slug = slugify(`${bucket}`, { trim: true }).substring(0, maxLength);
 
   // If the slug contains underscores or periods, replace them with a dash
   slug = slug.replaceAll(/[_.]/g, "-");
+
+  // Remove leading dashes
+  slug = slug.replace(/^-+/, "");
+
   // Return the lowercase version of the result
   slug = slug.toLowerCase();
 
-  if (bucket == slug) return slug;
-  else return `${slug}${bucketSuffix}`;
+  if (bucket === slug && slug.length >= minLength && slug[slug.length - 1] !== "-") return slug;
+  else {
+    const randomSuffix = "-" + crypto.randomUUID().substring(0, 4);
+    const suffix = `${addRandomisedSuffix ? randomSuffix : ""}${bucketSuffix}`;
+    if (slug.length + suffix.length > maxLength) {
+      slug = slug.substring(0, maxLength - suffix.length);
+    }
+    return `${slug}${suffix}`;
+  }
 }
 
 /**
@@ -800,29 +812,110 @@ async function migrateBucketSharing(bucket) {
 }
 
 /**
- * Create the new bucket if the bucket name changes
- * @param {string} bucket - name of the old bucket
+ * Gets the target bucket for migration: uses existing or creates a new one
+ * @param {string} bucket - name of the bucket to migrate
+ * @returns {string} - name of target bucket
  */
-async function createNewBucket(bucket) {
+async function getTargetBucket(bucket) {
   const convertedName = convertBucketName(bucket);
-  if (bucket != convertedName) {
-    // Check if the bucket already exists and we have access
-    try {
-      const headBucket = new HeadBucketCommand({
-        Bucket: convertedName,
-      });
-      await client.send(headBucket);
-    } catch (e) {
-      console.log(e);
-      // The bucket didn't exist yet, try to create it
-      const createBucket = new CreateBucketCommand({
-        Bucket: convertedName,
-      });
-      await client.send(createBucket);
+  // Name is compatible with s3, reuse current bucket
+  if (bucket === convertedName) return bucket;
+
+  // Otherwise check if bucket exists and is accessible
+  let targetAccessible;
+  try {
+    const headBucket = new HeadBucketCommand({
+      Bucket: convertedName,
+    });
+    await client.send(headBucket);
+    // Bucket owned by project
+    targetAccessible = true;
+  } catch (e) {
+    const status = e?.$metadata?.httpStatusCode;
+    if (status === 404) {
+      // No such bucket, create it
+      await createNewBucket(convertedName);
+      return convertedName;
+    } else if (status !== 403) {
+      throw e;
     }
-    return convertedName;
+    // Bucket owned by another project
+    targetAccessible = false;
   }
-  return bucket;
+
+  if (targetAccessible) {
+    // Check if target bucket was already used for migrating this bucket
+    const match = await checkMigrationReportNameMatch(convertedName, bucket);
+    if (match) {
+      return convertedName;
+    }
+  }
+  // Next, check if some project bucket was already used as the target bucket
+  // Get project s3 buckets
+  const buckets = await listProjectBuckets();
+  // Check if any buckets fit the naming pattern
+  const regex = new RegExp(`^${convertedName.slice(0, -5)}-[0-9a-f]{4}${bucketSuffix}$`);
+  const matchingNameBuckets = buckets.filter((b) => regex.test(b.Name));
+
+  // Check potential target buckets for migration reports
+  if (matchingNameBuckets.length) {
+    for (const b of matchingNameBuckets) {
+      const match = await checkMigrationReportNameMatch(b.Name, bucket);
+      if (match) {
+        return b.Name;
+      }
+    }
+  }
+  // Buckets have not been used to complete migration of current bucket
+  console.log("No existing target bucket found");
+  // Create a new target bucket with a random suffix
+  const newConvertedName = convertBucketName(bucket, true);
+  await createNewBucket(newConvertedName);
+  return newConvertedName;
+}
+
+/**
+ * Lists s3 bucket for current project
+ * @returns {Array} - buckets
+ */
+async function listProjectBuckets() {
+  const resp = await client.send(new ListBucketsCommand());
+  return resp?.Buckets || [];
+}
+
+/**
+ * Creates a new bucket with a provided name
+ * @param bucketName - name for new bucket
+ */
+async function createNewBucket(bucketName) {
+  const createBucket = new CreateBucketCommand({
+    Bucket: bucketName,
+  });
+  await client.send(createBucket);
+  console.log("Created a new bucket", bucketName);
+}
+
+/**
+ * Checks if target bucket has a migration report with the bucket used as source bucket
+ * @param {string} targetBucket - bucket the report if which is to be checked
+ * @param {string} bucket - source bucket
+ * @returns {bool}
+ */
+async function checkMigrationReportNameMatch(targetBucket, bucket) {
+  try {
+    const command = new GetObjectCommand({ Bucket: targetBucket, Key: "migration-report-latest.json" });
+    const { Body } = await client.send(command);
+    const text = await Body.transformToString();
+    const content = JSON.parse(text);
+    if (content?.name === bucket) {
+      console.log("Found existing target bucket", targetBucket);
+      return true;
+    }
+  } catch (e) {
+    console.log(e);
+    return false;
+  }
+  return false;
 }
 
 /**
@@ -887,14 +980,29 @@ async function beginMigration() {
     bucket.currentlyMigrating = true;
 
     // Ensure that the bucket exists
-    try {
-      const convertedName = await createNewBucket(bucket.name);
-      bucket.convertedName = convertedName;
-    } catch (e) {
-      console.log("Failed to create the new bucket after bucket name change. Reason/traceback:");
-      console.log(e);
-      emit("error", interruptReasons.migrationError);
-      return;
+    if (!bucket.convertedName) {
+      try {
+        const targetBucket = await getTargetBucket(bucket.name);
+        bucket.convertedName = targetBucket;
+      } catch (e) {
+        console.log("Failed to select or create the target bucket. Reason/traceback:");
+        console.log(e);
+        emit("error", interruptReasons.migrationError);
+        return;
+      }
+    } else {
+      // Make sure existing bucket is accessible
+      try {
+        const headBucket = new HeadBucketCommand({
+          Bucket: bucket.convertedName,
+        });
+        await client.send(headBucket);
+      } catch (e) {
+        console.log("Failed to access existing bucket for migration. Reason/traceback:");
+        console.log(e);
+        emit("error", interruptReasons.migrationError);
+        return;
+      }
     }
 
     currentStage.value = migrationStages.sharing;
@@ -1007,7 +1115,7 @@ function generatePolicyStatementsFromACL(bucketName, ACLs, currentStatements = [
 async function putBucketPolicy(bucketName, policy) {
   try {
     const command = new PutBucketPolicyCommand({
-      Bucket: convertBucketName(bucketName),
+      Bucket: bucketName,
       Policy: JSON.stringify(policy),
     });
     await client.send(command);
