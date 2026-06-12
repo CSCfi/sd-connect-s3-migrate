@@ -79,3 +79,23 @@ export function getBucketStatus(statusNum) {
   }
   return null;
 }
+
+/**
+ * Returns a Unix timestamp in seconds for the given date, or the current time
+ * @param {string|undefined} date
+ * @returns {number} - timestamp in seconds
+ */
+export function getTimestamp(date) {
+  return date === undefined ? Math.floor(Date.now() / 1000) : Math.floor(new Date(date).getTime() / 1000);
+}
+
+/**
+ * Extracts the segment prefix from a manifest path
+ * Manifest is expected in the form bucketName/objectName/uploadId
+ *
+ * @param {string|null|undefined} manifest - the manifest path.
+ * @returns {string|null} the segment prefix, or null if no manifest was provided.
+ */
+export function getSegmentsPrefix(manifest) {
+  return manifest ? manifest.slice(manifest.indexOf("/") + 1) : null;
+}

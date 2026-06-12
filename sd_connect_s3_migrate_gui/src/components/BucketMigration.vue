@@ -60,13 +60,20 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { getSDConnectAPIEndpoint } from "../scripts/config";
-import { estimatedBytesPerSec, getTimeEstimate, interruptReasons, migrationStages, timeout } from "../scripts/common";
+import {
+  estimatedBytesPerSec,
+  getSegmentsPrefix,
+  getTimeEstimate,
+  getTimestamp,
+  interruptReasons,
+  migrationStages,
+  timeout,
+} from "../scripts/common";
 import {
   checkObjectManifest,
   getBucketACLs,
   getEC2Credentials,
   getObject,
-  getObjectEtag,
   getObjectMeta,
   getObjects,
   putManifestObject,
@@ -342,7 +349,7 @@ async function migrateBucketHeaders(bucket) {
 async function multipartCopyObject(convertedBucket, key, manifest) {
   // Split the manifest to a bucket and prefix part
   let segment_bucket = manifest.slice(0, manifest.indexOf("/"));
-  let segment_prefix = manifest.slice(manifest.indexOf("/") + 1);
+  let segment_prefix = getSegmentsPrefix(manifest);
 
   let uploadId;
   let segments;
@@ -380,11 +387,11 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
         PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
         UploadId: uploadId,
       });
-      await client.send(multipartCopyCommand);
+      const multipartPartResp = await client.send(multipartCopyCommand);
 
       // Check that the checksums match with the part and original
       console.log("Segment hash:", segment.hash);
-      console.log("Retrieved object etag:", await getObjectEtag(scopedToken, segment_bucket, segment.name));
+      console.log("Multipart response ETag:", multipartPartResp.ETag.replaceAll('"', ""));
 
       multipartParts.push({
         ETag: segment.hash,
@@ -620,6 +627,8 @@ async function migrateBucketObjects(bucket) {
         const multipartParts = await multipartCopyObject(bucket.convertedName, object.key, manifest);
         object.multipartParts = multipartParts;
         objectSize = resp.ContentLength ?? 0;
+        // Save last modified before copy
+        object.lastModified = getTimestamp(resp.LastModified);
       } catch {
         // If the object is inaccessible using S3 API, copy conventionally
         console.warn("Copying the object conventionally");
@@ -630,6 +639,7 @@ async function migrateBucketObjects(bucket) {
           object.key,
           objectMeta.size,
         );
+        object.lastModified = getTimestamp(objectMeta.last_modified);
 
         // conventional copy parts can be either a single checksum or a list of parts
         if (typeof conventionalCopyParts == "string") {

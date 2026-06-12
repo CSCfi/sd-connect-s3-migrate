@@ -65,6 +65,8 @@
         <Results
           :project="activeProject"
           :migratedBuckets="migratedBuckets"
+          :scopedToken="scopedToken"
+          :s3address="getS3endpoint()"
           @start-new-conversion="startNewConversion"
         />
       </div>
@@ -84,7 +86,7 @@ import Migration from "../components/BucketMigration.vue";
 import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
-import { interruptReasons } from "../scripts/common";
+import { getTimestamp, interruptReasons } from "../scripts/common";
 import { devConsole } from "../renderer.js";
 
 // Type imports
@@ -158,7 +160,7 @@ async function saveMigrationState(buckets) {
   const migrationState = {
     username: toRaw(user.value),
     apiToken: toRaw(apiToken.value),
-    timestamp: Math.floor(Date.now() / 1000),
+    timestamp: getTimestamp(),
     project: toRaw(activeProject.value),
     buckets: buckets,
   };

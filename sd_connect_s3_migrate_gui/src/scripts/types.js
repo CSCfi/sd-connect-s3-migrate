@@ -21,6 +21,7 @@
  * @property {string} checksumSha256 - The sha1 hash of the object (optional)
  * @property {string} ETag - The md5 hash of the object (optional)
  * @property {MigrationObjectPart[]} multipartParts - The multipart parts if the object is multipart
+ * @property {string} lastModified - timestamp of when source object was last modified (optional)
  */
 
 /**
