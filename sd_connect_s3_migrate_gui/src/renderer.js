@@ -35,6 +35,8 @@ import { vControl } from "@cscfi/csc-ui-vue";
 
 import MigrationPage from "./pages/MigrationPage.vue";
 
+import log from "electron-log/renderer";
+
 const app = createApp(MigrationPage);
 
 app.directive("control", vControl);
@@ -42,3 +44,5 @@ app.directive("control", vControl);
 defineCustomElements();
 
 app.mount("#app");
+
+Object.assign(console, log.functions);

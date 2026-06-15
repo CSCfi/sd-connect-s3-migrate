@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, powerSaveBlocker } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import fs from "fs/promises";
+import log from "electron-log/main";
+import util from "util";
 
 /**
  * @typedef {import { MigrationState } from "scripts/types.js";}
@@ -27,8 +29,28 @@ function UpsertKeyValue(obj, keyToChange, value) {
   obj[keyToChange] = value;
 }
 
+const FILES_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate");
+
+// Logic for logging to file
+const LOG_FILE_PATH = path.join(FILES_PATH, "migration-logfile.log");
+
+// Prevent node truncating long printouts
+util.inspect.defaultOptions = {
+  ...util.inspect.defaultOptions,
+  maxArrayLength: null,
+  depth: null,
+  maxStringLength: null,
+};
+
+// Initialize electron logger
+log.initialize();
+log.transports.file.resolvePathFn = () => LOG_FILE_PATH;
+
+// Override default logger functions
+Object.assign(console, log.functions);
+
 // Resumable migration process logic
-const STATE_FILE_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate", "migration-state.json");
+const STATE_FILE_PATH = path.join(FILES_PATH, "migration-state.json");
 
 /**
  * Handle the migration state save event
