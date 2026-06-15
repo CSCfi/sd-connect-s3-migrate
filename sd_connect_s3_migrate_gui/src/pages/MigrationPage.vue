@@ -33,7 +33,7 @@
           @go-back="goBack"
           :project="activeProject"
           :scopedToken="scopedToken"
-          :s3address="getS3endpoint()"
+          :s3client="s3client"
         />
       </div>
 
@@ -48,7 +48,7 @@
           :oldMigrateBuckets="oldMigrateBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"
-          :s3address="getS3endpoint()"
+          :s3client="s3client"
         />
         <ResumeMigration
           v-else
@@ -66,7 +66,7 @@
           :project="activeProject"
           :migratedBuckets="migratedBuckets"
           :scopedToken="scopedToken"
-          :s3address="getS3endpoint()"
+          :s3client="s3client"
           @start-new-conversion="startNewConversion"
         />
       </div>
@@ -85,9 +85,10 @@ import SelectBuckets from "../components/SelectBuckets.vue";
 import Migration from "../components/BucketMigration.vue";
 import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
-import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
+import { discoverTokenProjects, getScopedToken } from "../scripts/openstack";
 import { getTimestamp, interruptReasons } from "../scripts/common";
 import { devConsole } from "../renderer.js";
+import { createS3Client } from "../scripts/s3.js";
 
 // Type imports
 /**
@@ -131,6 +132,8 @@ const migratedBuckets = ref([]);
 // Track whether this component updates user value
 const userExists = ref(false);
 
+const s3client = ref(null);
+
 onMounted(() => {
   // Attempt loading the possible previous migration state
   loadMigrationState();
@@ -148,6 +151,20 @@ watch(preventSuspend, (newValue) => {
   } else {
     console.log("Stop app suspension prevention");
     window.powerSaveBlocker.stop();
+  }
+});
+
+watch(scopedToken, async (newToken) => {
+  if (newToken) {
+    try {
+      s3client.value = await createS3Client(newToken, activeProject.value.id);
+      console.log("Created S3 client");
+    } catch (e) {
+      console.error("Failed to create S3 client. Reason/traceback:");
+      console.error(e);
+    }
+  } else {
+    s3client.value = null;
   }
 });
 

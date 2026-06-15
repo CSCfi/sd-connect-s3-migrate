@@ -53,7 +53,6 @@ import {
   ListBucketsCommand,
   PutBucketPolicyCommand,
   PutObjectCommand,
-  S3Client,
   S3ServiceException,
   UploadPartCommand,
   UploadPartCopyCommand,
@@ -72,7 +71,6 @@ import {
 import {
   checkObjectManifest,
   getBucketACLs,
-  getEC2Credentials,
   getObject,
   getObjectMeta,
   getObjects,
@@ -91,13 +89,13 @@ import {
 } from "../scripts/sd-connect";
 import { devConsole } from "../renderer.js";
 
-const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets } = defineProps([
+const { buckets, scopedToken, project, sdApiToken, oldMigrateBuckets, s3client } = defineProps([
   "buckets",
   "scopedToken",
   "project",
-  "s3address",
   "sdApiToken",
   "oldMigrateBuckets",
+  "s3client",
 ]);
 
 const emit = defineEmits(["buckets-migrated", "update-migration-state", "error"]);
@@ -139,9 +137,6 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
 ]
 */
 let migrateBuckets = ref([]);
-
-let ec2;
-let client;
 
 onMounted(() => {
   if (oldMigrateBuckets.length > 0) {
@@ -364,7 +359,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       Key: key,
     });
     // Get the upload id
-    const multipartResp = await client.send(startMultipart);
+    const multipartResp = await s3client.send(startMultipart);
     uploadId = multipartResp.UploadId;
   } catch (e) {
     console.error("No multipart id for object, aborting.");
@@ -387,7 +382,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
         PartNumber: Number(segment.name.match(/[0-9]{8}$/)[0]) + 1,
         UploadId: uploadId,
       });
-      const multipartPartResp = await client.send(multipartCopyCommand);
+      const multipartPartResp = await s3client.send(multipartCopyCommand);
 
       // Check that the checksums match with the part and original
       console.log("Segment hash:", segment.hash);
@@ -408,7 +403,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       },
       UploadId: uploadId,
     });
-    const finishMultipartResp = await client.send(finishMultipart);
+    const finishMultipartResp = await s3client.send(finishMultipart);
     console.log("Multipart upload completed");
     devConsole.log("finishMultipartResp", finishMultipartResp);
 
@@ -421,7 +416,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       Key: key,
       UploadId: uploadId,
     });
-    await client.send(abortMultipart);
+    await s3client.send(abortMultipart);
     throw err;
   }
 }
@@ -450,7 +445,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       Key: key,
       ChecksumSHA256: hashSha256,
     });
-    const putObjectResp = await client.send(putObject);
+    const putObjectResp = await s3client.send(putObject);
     console.log(`Copied ${key} as one chunk.`);
     devConsole.log("putObjectResp", putObjectResp);
 
@@ -466,7 +461,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       Key: key,
     });
     // Get the upload id
-    const multipartResp = await client.send(startMultipart);
+    const multipartResp = await s3client.send(startMultipart);
     devConsole.log("multipartResp", multipartResp);
     uploadId = multipartResp.UploadId;
   } catch (e) {
@@ -497,7 +492,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
         UploadId: uploadId,
         ChecksumSHA256: hashSha256,
       });
-      const multipartPartResp = await client.send(putObjectPart);
+      const multipartPartResp = await s3client.send(putObjectPart);
       devConsole.log("multipartPartResp", multipartPartResp);
       multipartParts.push({
         PartNumber: partNumber + 1,
@@ -517,7 +512,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       },
       UploadId: uploadId,
     });
-    const finishMultipartResp = await client.send(finishMultipart);
+    const finishMultipartResp = await s3client.send(finishMultipart);
     console.log("Multipart upload completed");
     devConsole.log("finishMultipartResp", finishMultipartResp);
 
@@ -530,7 +525,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       Key: key,
       UploadId: uploadId,
     });
-    await client.send(abortMultipart);
+    await s3client.send(abortMultipart);
     throw err;
   }
 }
@@ -622,7 +617,7 @@ async function migrateBucketObjects(bucket) {
       // if size unavailable, save for progress tracking
       let objectSize;
       try {
-        const resp = await client.send(objectAccessCommand);
+        const resp = await s3client.send(objectAccessCommand);
         console.log(`Copying object ${object.key} using multipart.`);
         const multipartParts = await multipartCopyObject(bucket.convertedName, object.key, manifest);
         object.multipartParts = multipartParts;
@@ -640,7 +635,6 @@ async function migrateBucketObjects(bucket) {
           objectMeta.size,
         );
         object.lastModified = getTimestamp(objectMeta.last_modified);
-
         // conventional copy parts can be either a single checksum or a list of parts
         if (typeof conventionalCopyParts == "string") {
           object.checksumSha256 = conventionalCopyParts;
@@ -677,7 +671,7 @@ async function migrateBucketObjects(bucket) {
       Bucket: convertBucketName(bucket.name),
       Key: "migration-report-latest.json",
     });
-    const reportResp = await client.send(putReportCommand);
+    const reportResp = await s3client.send(putReportCommand);
     console.log("Put migration report");
     devConsole.log("reportResp", reportResp);
   } catch (e) {
@@ -705,7 +699,7 @@ async function migrateBucketSharing(bucket) {
   // Step 1. Retrieve the bucket policy
   try {
     const command = new GetBucketPolicyCommand({ Bucket: bucket.name });
-    const response = await client.send(command);
+    const response = await s3client.send(command);
     if (response?.Policy) {
       currentPolicy = JSON.parse(response.Policy);
     }
@@ -839,7 +833,7 @@ async function getTargetBucket(bucket) {
     const headBucket = new HeadBucketCommand({
       Bucket: convertedName,
     });
-    await client.send(headBucket);
+    await s3client.send(headBucket);
     // Bucket owned by project
     targetAccessible = true;
   } catch (e) {
@@ -891,7 +885,7 @@ async function getTargetBucket(bucket) {
  * @returns {Array} - buckets
  */
 async function listProjectBuckets() {
-  const resp = await client.send(new ListBucketsCommand());
+  const resp = await s3client.send(new ListBucketsCommand());
   return resp?.Buckets || [];
 }
 
@@ -903,7 +897,7 @@ async function createNewBucket(bucketName) {
   const createBucket = new CreateBucketCommand({
     Bucket: bucketName,
   });
-  await client.send(createBucket);
+  await s3client.send(createBucket);
   console.log("Created a new bucket", bucketName);
 }
 
@@ -916,7 +910,7 @@ async function createNewBucket(bucketName) {
 async function checkMigrationReportNameMatch(targetBucket, bucket) {
   try {
     const command = new GetObjectCommand({ Bucket: targetBucket, Key: "migration-report-latest.json" });
-    const { Body } = await client.send(command);
+    const { Body } = await s3client.send(command);
     const text = await Body.transformToString();
     const content = JSON.parse(text);
     if (content?.name === bucket) {
@@ -935,24 +929,6 @@ async function checkMigrationReportNameMatch(targetBucket, bucket) {
  */
 async function beginMigration() {
   console.log("Begun migration.");
-
-  // Initialize the ec2 credentials and the client
-  try {
-    ec2 = await getEC2Credentials(scopedToken, project.id);
-    client = new S3Client({
-      region: "us-east-1",
-      endpoint: s3address,
-      credentials: {
-        accessKeyId: ec2.access,
-        secretAccessKey: ec2.secret,
-      },
-    });
-  } catch (e) {
-    console.error("Failed to create an S3 client. Reason/traceback:");
-    console.error(e);
-    emit("error", interruptReasons.migrationError);
-    return;
-  }
 
   // Iterate over all buckets flagged for migration
   if (oldMigrateBuckets.length > 0) {
@@ -1008,7 +984,7 @@ async function beginMigration() {
         const headBucket = new HeadBucketCommand({
           Bucket: bucket.convertedName,
         });
-        await client.send(headBucket);
+        await s3client.send(headBucket);
       } catch (e) {
         console.error("Failed to access existing bucket for migration. Reason/traceback:");
         console.error(e);
@@ -1131,7 +1107,7 @@ async function putBucketPolicy(bucketName, policy) {
       Bucket: bucketName,
       Policy: JSON.stringify(policy),
     });
-    await client.send(command);
+    await s3client.send(command);
     console.log(`Added bucket policy for ${bucketName}`);
   } catch (e) {
     if (e instanceof S3ServiceException && e.name === "MalformedPolicy") {

@@ -75,11 +75,11 @@
 import { computed, watch, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
 import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getTimeEstimate } from "../scripts/common";
-import { getBuckets, getEC2Credentials } from "../scripts/openstack";
-import { S3Client, ListBucketsCommand } from "@aws-sdk/client-s3";
+import { getBuckets } from "../scripts/openstack";
+import { ListBucketsCommand } from "@aws-sdk/client-s3";
 import { NEW_VERSION_DATE } from "../scripts/config";
 
-const { project, scopedToken, s3address } = defineProps(["project", "scopedToken", "s3address"]);
+const { project, scopedToken, s3client } = defineProps(["project", "scopedToken", "s3client"]);
 
 const emit = defineEmits(["select-buckets", "go-back"]);
 
@@ -91,16 +91,7 @@ watch(
       const ret = await getBuckets(newToken);
       buckets.value = ret;
       try {
-        const ec2 = await getEC2Credentials(newToken, project.id);
-        const client = new S3Client({
-          region: "us-east-1",
-          endpoint: s3address,
-          credentials: {
-            accessKeyId: ec2.access,
-            secretAccessKey: ec2.secret,
-          },
-        });
-        const resp = await client.send(new ListBucketsCommand());
+        const resp = await s3client.send(new ListBucketsCommand());
         const s3Buckets = resp?.Buckets || [];
         // Create a bucket map to find new-version buckets
         s3BucketMap.value = new Map(s3Buckets.map((bucket) => [bucket.Name, bucket.CreationDate]));

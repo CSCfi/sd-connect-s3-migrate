@@ -54,15 +54,15 @@
 
 <script setup>
 import { computed, ref } from "vue";
-import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getReadableSize, getSegmentsPrefix, getTimestamp } from "../scripts/common";
-import { getEC2Credentials, getObjects, deleteBucket, deleteObject } from "../scripts/openstack";
+import { getObjects, deleteBucket, deleteObject } from "../scripts/openstack";
 
-const { project, migratedBuckets, scopedToken, s3address } = defineProps([
+const { project, migratedBuckets, scopedToken, s3client } = defineProps([
   "project",
   "migratedBuckets",
   "scopedToken",
-  "s3address",
+  "s3client",
 ]);
 const emit = defineEmits(["start-new-conversion"]);
 
@@ -109,17 +109,6 @@ async function deleteMigrated(buckets) {
   // Primitive verification/deletion error tracking
   const errorSet = new Set();
 
-  // Initialize the S3 client
-  const ec2 = await getEC2Credentials(scopedToken, project.id);
-  const client = new S3Client({
-    region: "us-east-1",
-    endpoint: s3address,
-    credentials: {
-      accessKeyId: ec2.access,
-      secretAccessKey: ec2.secret,
-    },
-  });
-
   for (const bucket of buckets) {
     const bucketDeletionNeeded = bucket.name !== bucket.convertedName;
     const segmentsBucket = `${bucket.name}_segments`;
@@ -150,7 +139,7 @@ async function deleteMigrated(buckets) {
         const listObjectsCmd = new ListObjectsV2Command({
           Bucket: bucket.convertedName,
         });
-        const listObjectsResp = await client.send(listObjectsCmd);
+        const listObjectsResp = await s3client.send(listObjectsCmd);
         s3Objects = listObjectsResp?.Contents || [];
       } catch (e) {
         console.error(`Could not retrieve migrated objects from ${bucket.convertedName}`);
