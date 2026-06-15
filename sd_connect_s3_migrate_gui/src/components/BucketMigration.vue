@@ -668,7 +668,7 @@ async function migrateBucketObjects(bucket) {
   try {
     const putReportCommand = new PutObjectCommand({
       Body: migrationReport,
-      Bucket: convertBucketName(bucket.name),
+      Bucket: bucket.convertedName,
       Key: "migration-report-latest.json",
     });
     const reportResp = await s3client.send(putReportCommand);
