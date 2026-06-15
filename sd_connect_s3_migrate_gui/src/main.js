@@ -29,8 +29,10 @@ function UpsertKeyValue(obj, keyToChange, value) {
   obj[keyToChange] = value;
 }
 
+const FILES_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate");
+
 // Logic for logging to file
-const LOG_FILE_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate", "migration-logfile.log");
+const LOG_FILE_PATH = path.join(FILES_PATH, "migration-logfile.log");
 
 // Prevent node truncating long printouts
 util.inspect.defaultOptions = {
@@ -48,7 +50,7 @@ log.transports.file.resolvePathFn = () => LOG_FILE_PATH;
 Object.assign(console, log.functions);
 
 // Resumable migration process logic
-const STATE_FILE_PATH = path.join(app.getPath("documents"), "SD-Connect-S3-Migrate", "migration-state.json");
+const STATE_FILE_PATH = path.join(FILES_PATH, "migration-state.json");
 
 /**
  * Handle the migration state save event
