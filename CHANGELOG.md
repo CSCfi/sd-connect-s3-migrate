@@ -18,6 +18,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- (users) log file containing useful debug information at `~/Documents/SD-Connect-S3-Migrate/migration-logfile.log`
+- logging of browser console to file via `electron-log`
 - Prevent converted bucket name collision (#78)
 - Retry header operations on failure (#76)
 - Revert previous manifest if object copy fails (#77)
