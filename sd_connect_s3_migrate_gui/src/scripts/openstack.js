@@ -194,6 +194,7 @@ export async function getBuckets(token) {
         headers: {
           "X-Auth-Token": token,
         },
+        cache: "no-cache",
       });
 
       bucket_page = await resp.json();
@@ -228,6 +229,7 @@ export async function getBucketACLs(token, bucket) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     let readAcl = resp.headers.get("X-Container-Read");
@@ -296,6 +298,7 @@ export async function getObjects(token, bucket, prefix = "") {
         headers: {
           "X-Auth-Token": token,
         },
+        cache: "no-cache",
       });
 
       object_page = await resp.json();
@@ -327,6 +330,7 @@ export async function checkObjectManifest(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     // Currently we only support DLO manifests, not SLO, as SD Connect tools
@@ -390,6 +394,7 @@ export async function getObjectMeta(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     objectMeta.size = Number(resp.headers.get("Content-Length"));
@@ -456,6 +461,7 @@ export async function getObjectEtag(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     // retrieve the etag from the response
