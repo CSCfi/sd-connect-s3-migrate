@@ -88,7 +88,6 @@ watch(
   async (newToken) => {
     if (newToken) {
       loading.value = true;
-      console.log(`Using scoped token: ${newToken}`);
       const ret = await getBuckets(newToken);
       buckets.value = ret;
       try {
@@ -106,7 +105,8 @@ watch(
         // Create a bucket map to find new-version buckets
         s3BucketMap.value = new Map(s3Buckets.map((bucket) => [bucket.Name, bucket.CreationDate]));
       } catch (e) {
-        console.error("Failed to retrieve s3 buckets", e);
+        console.error("Failed to retrieve S3 buckets:");
+        console.error(e);
       }
       loading.value = false;
       if (selected.value.length) {

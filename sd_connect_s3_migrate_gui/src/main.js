@@ -58,16 +58,16 @@ const STATE_FILE_PATH = path.join(FILES_PATH, "migration-state.json");
  * @param {MigrationState} state - the current state of the migration
  */
 async function saveMigrationStateHandler(_event, state) {
-  if (!app.isPackaged) {
-    console.log(`Main thread saving following state: ${state}`);
-  }
-
   try {
     await fs.mkdir(path.dirname(STATE_FILE_PATH), { recursive: true });
     await fs.writeFile(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
+    console.log("Migration state saved.");
+    if (!app.isPackaged) {
+      console.log(state);
+    }
   } catch (e) {
-    console.log("Failed to save the migration state.");
-    console.log(e);
+    console.error("Failed to save the migration state:");
+    console.error(e);
   }
 }
 
@@ -79,13 +79,13 @@ async function loadMigrationStateHandler() {
   try {
     const data = await fs.readFile(STATE_FILE_PATH, "utf-8");
     const state = JSON.parse(data);
-
+    console.log("Migration state loaded.");
     if (!app.isPackaged) {
-      console.log(`Main thread loaded following state: ${state}`);
+      console.log(state);
     }
-
     return state;
   } catch {
+    console.log("No migration state loaded.");
     return null; // first run or file deleted by user
   }
 }
@@ -99,9 +99,10 @@ async function clearMigrationStateHandler() {
     // Rename the existing state if it exists when the user cancels the resume.
     // We'll keep the old versions with a date stamp attached.
     await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${t.toISOString()}.json`);
+    console.log("Cleared migration state.");
   } catch (e) {
-    console.log("Failed to clear migration state.");
-    console.log(e);
+    console.error("Failed to clear migration state:");
+    console.error(e);
     return;
   }
 }
@@ -115,9 +116,10 @@ async function finishMigrationStateHandler() {
     // We'll keep the old versions with a date stamp attached.
     const t = new Date();
     await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-finished-${t.toISOString()}.json`);
+    console.log("Renamed finished migration state.");
   } catch (e) {
-    console.log("Failed to rename finished migration state.");
-    console.log(e);
+    console.error("Failed to rename finished migration state:");
+    console.error(e);
     return;
   }
 }
