@@ -1,6 +1,7 @@
 // Convenience functions for accessing openstack
 
 import { getOpenstackAuthEndpoint } from "./config";
+import { devConsole } from "../renderer";
 
 let object_storage_endpoint = "";
 let userId = "";
@@ -34,15 +35,14 @@ export async function loginWithUserpass(username, password) {
   });
 
   if (resp.status >= 400) {
-    console.log("Login not successful");
+    console.error(`Login not successful. Response status ${resp.status}.`);
     return unscoped;
   }
 
   // Cache the user id
   const unscopedResponse = await resp.json();
-  console.log(unscopedResponse);
   userId = unscopedResponse?.token?.user?.id;
-  console.log(`User id: ${userId}`);
+  console.log(`Logged-in user id: ${userId}`);
 
   unscoped = resp.headers.get("X-Subject-Token");
 
@@ -66,7 +66,7 @@ export async function discoverTokenProjects(token) {
   });
 
   if (resp.status != 200) {
-    console.log("Could not retrieve projects");
+    console.error(`Could not retrieve projects. Response status ${resp.status}`);
   }
 
   const resp_projects = await resp.json();
@@ -102,7 +102,7 @@ export async function getScopedToken(token, project) {
   });
 
   if (resp.status != 200 && resp.status != 201) {
-    console.log("Could not retrieve a scoped token.");
+    console.error(`Could not retrieve a scoped token. Response status ${resp.status}.`);
     return scoped;
   }
 
@@ -114,7 +114,7 @@ export async function getScopedToken(token, project) {
     .filter((service) => service.type === "object-store")[0]
     .endpoints.filter((endpoint) => endpoint.interface === "public")[0].url;
 
-  console.log(object_storage_endpoint);
+  console.log("Set object storage endpoint:", object_storage_endpoint);
 
   return scoped;
 }
@@ -127,7 +127,7 @@ export async function getScopedToken(token, project) {
  */
 export async function getEC2Credentials(token, projectId) {
   if (!userId) {
-    console.log("No user id is defined, cannot retrieve ec2 credentials.");
+    console.error("No user id is defined, cannot retrieve EC2 credentials.");
     return;
   }
 
@@ -143,12 +143,11 @@ export async function getEC2Credentials(token, projectId) {
     const creds = await resp.json();
     ec2 = creds?.credentials?.find((credential) => credential?.type === "ec2" && credential?.tenant_id === projectId);
     if (!ec2) {
-      throw new Error("No credentials listed");
+      throw new Error("Failed to retrieve EC2 credentials.");
     }
   } catch (e) {
-    console.log(e);
-    console.log("Failed to retrieve EC2 credentials.");
-    console.log("Trying to generate EC2 credentials.");
+    console.warn(e);
+    console.warn("Trying to generate EC2 credentials.");
 
     const resp = await fetch(new URL(`/v3/users/${userId}/credentials/OS-EC2`, await getOpenstackAuthEndpoint()), {
       method: "POST",
@@ -165,7 +164,8 @@ export async function getEC2Credentials(token, projectId) {
     ec2 = creds?.credential;
   }
 
-  console.log(ec2);
+  devConsole.log("EC2", ec2);
+  console.log("Retrieved EC2 credentials");
 
   return ec2;
 }
@@ -200,12 +200,14 @@ export async function getBuckets(token) {
       if (bucket_page.length > 0) buckets = [...buckets, ...bucket_page];
       marker = buckets[buckets.length - 1]?.name ?? "";
     } catch (e) {
-      console.log(e);
+      console.error("Error retrieving buckets via Swift API:");
+      console.error(e);
       break;
     }
   } while (bucket_page?.length > 0);
 
-  console.log(buckets);
+  devConsole.log("Buckets", buckets);
+  console.log(`Retrieved ${buckets.length} buckets`);
 
   return buckets;
 }
@@ -231,9 +233,6 @@ export async function getBucketACLs(token, bucket) {
     let readAcl = resp.headers.get("X-Container-Read");
     let writeAcl = resp.headers.get("X-Container-Write");
 
-    console.log(readAcl);
-    console.log(writeAcl);
-
     // Parse the ACLs, we assume there will be no role based ACL entries as they're not
     // really supported for normal Allas users.
     if (readAcl) {
@@ -252,11 +251,17 @@ export async function getBucketACLs(token, bucket) {
         .map((item) => item.split(":")[0]); // yank the projects from the ACL listing, we don't care about the trailing asterisk
     }
   } catch (e) {
-    console.log("Failed to retrieve bucket ACLs.");
-    console.log(e);
+    console.error("Failed to retrieve bucket ACLs:");
+    console.error(e);
   }
 
-  console.log(ACLs);
+  if (Object.keys(ACLs).length) {
+    console.log(`Retrieved bucket ${bucket} ACLs:`);
+    console.log(ACLs);
+  } else {
+    console.log(`No ACL entries exist for bucket ${bucket}`);
+  }
+
   return ACLs;
 }
 
@@ -297,7 +302,8 @@ export async function getObjects(token, bucket, prefix = "") {
       if (object_page.length > 0) objects = [...objects, ...object_page];
       marker = objects[objects.length - 1]?.name ?? "";
     } catch (e) {
-      console.log(e);
+      console.error(`Error retrieving objects for ${bucket} via Swift API:`);
+      console.error(e);
       break;
     }
   } while (object_page?.length > 0);
@@ -326,9 +332,10 @@ export async function checkObjectManifest(token, bucket, key) {
     // Currently we only support DLO manifests, not SLO, as SD Connect tools
     // don't use SLO anywhere
     manifest = resp.headers.get("X-Object-Manifest");
-    console.log(manifest);
+    console.log(`Object ${key} manifest: ${manifest}`);
   } catch (e) {
-    console.log(e);
+    console.error(`Error retrieving object ${key} manifest:`);
+    console.error(e);
   }
 
   return manifest;
@@ -359,8 +366,8 @@ export async function putManifestObject(token, bucket, key, manifest) {
     }
     console.log(`Put manifest object for ${key} in ${bucket}`);
   } catch (e) {
-    console.log(`Failed to put manifest object for ${key} in ${bucket}`);
-    console.log(e);
+    console.error(`Failed to put manifest object for ${key} in ${bucket}:`);
+    console.error(e);
   }
 }
 
@@ -388,7 +395,8 @@ export async function getObjectMeta(token, bucket, key) {
     objectMeta.size = Number(resp.headers.get("Content-Length"));
     objectMeta.last_modified = resp.headers.get("Last-Modified");
   } catch (e) {
-    console.log(e);
+    console.error(`Error retrieving object ${key} metadata via Swift API:`);
+    console.error(e);
   }
 
   return objectMeta;
@@ -421,10 +429,12 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
 
     object = await resp.bytes();
   } catch (e) {
-    console.log(e);
+    console.error(`Error retrieving object ${key} via Swift API:`);
+    console.error(e);
   }
 
-  console.log(object);
+  console.log(`Retrieved object ${key}`);
+  devConsole.log(object);
 
   return object;
 }
@@ -451,7 +461,8 @@ export async function getObjectEtag(token, bucket, key) {
     // retrieve the etag from the response
     etag = resp.headers.get("ETag");
   } catch (e) {
-    console.log(e);
+    console.error(`Error retrieving object ${key} etag via Swift API:`);
+    console.error(e);
   }
 
   return etag;

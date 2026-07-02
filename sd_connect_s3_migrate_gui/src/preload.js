@@ -13,7 +13,6 @@ import { contextBridge, ipcRenderer } from "electron";
  * @returns {Promise<undefined>}
  */
 async function saveMigrationStateCallback(state) {
-  console.log("Invoking migration state save in main process.");
   return await ipcRenderer.invoke("save-migration-state", state);
 }
 
@@ -22,7 +21,6 @@ async function saveMigrationStateCallback(state) {
  * @returns {Promise<(MigrationState | null)>} - the loaded migration state
  */
 async function loadMigrationStateCallback() {
-  console.log("Invoking migration state load in main process.");
   return await ipcRenderer.invoke("load-migration-state");
 }
 
@@ -31,7 +29,6 @@ async function loadMigrationStateCallback() {
  * @returns {Promise<undefined>}
  */
 async function clearMigrationStateCallback() {
-  console.log("Invoking migration state clear in main process.");
   return await ipcRenderer.invoke("clear-migration-state");
 }
 
@@ -40,7 +37,6 @@ async function clearMigrationStateCallback() {
  * @returns {Promise<undefined>}
  */
 async function finishMigrationStateCallback() {
-  console.log("Invoking migration state finish in main process.");
   return await ipcRenderer.invoke("finish-migration-state");
 }
 

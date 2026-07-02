@@ -82,6 +82,7 @@ import {
   putSharingWhitelist,
   removeProjectKeyFromWhitelist,
 } from "../scripts/sd-connect";
+import { devConsole } from "../renderer.js";
 
 const { buckets, scopedToken, project, s3address, sdApiToken, oldMigrateBuckets } = defineProps([
   "buckets",
@@ -159,7 +160,6 @@ onMounted(() => {
         objects: [],
       });
     }
-    console.log(migrateBuckets.value);
   }
 
   // Migration started automatically on step
@@ -248,7 +248,7 @@ async function migrateBucketHeaders(bucket) {
   // We're first testing just the object storage side of things, as it's preferable
   // to test header migration on dev before starting to migrate production headers
   if (!(await getSDConnectAPIEndpoint())) {
-    console.log("No API URL provided, simulating header migration.");
+    console.warn("No API URL provided, simulating header migration.");
 
     for (const object of bucket.objects) {
       bucket.currentlyMigratingFile = object.key;
@@ -266,9 +266,9 @@ async function migrateBucketHeaders(bucket) {
     await addProjectKeyToWhitelist(sdApiToken, project.name);
   } catch (e) {
     checkError(e);
-    console.log("Could not add the project key to the whitelist.");
-    console.log(e);
-    console.log("Aborting bucket header migration.");
+    console.error(`Could not add the project ${project.name} key to the whitelist:`);
+    console.error(e);
+    console.error("Aborting bucket header migration.");
     return;
   }
 
@@ -276,7 +276,7 @@ async function migrateBucketHeaders(bucket) {
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.headerDone) {
-      console.log("Skipping an object header that's already marked as done.");
+      console.log(`Skipping the header for object ${object.key}. Already marked as done.`);
       continue;
     }
 
@@ -286,15 +286,15 @@ async function migrateBucketHeaders(bucket) {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
       checkError(e);
-      console.log("Failed to retrieve header for object, retrying...");
-      console.log(e);
+      console.error(`Failed to retrieve header for object ${object.name}, retrying...`);
+      console.error(e);
       // Retry on failure
       try {
         header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
       } catch (e) {
         // Failure expected in some cases like v1 objects
-        console.log("Failed to retrieve header for object on retry, continuing...");
-        console.log(e);
+        console.error(`Failed to retrieve header for object ${object.name}, on retry, continuing...`);
+        console.error(e);
         continue;
       }
     }
@@ -303,14 +303,14 @@ async function migrateBucketHeaders(bucket) {
       await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
     } catch (e) {
       checkError(e);
-      console.log("Failed to add the header for object, retrying...");
-      console.log(e);
+      console.error(`Failed to add the header for object ${object.name}, retrying...`);
+      console.error(e);
       // Retry on failure
       try {
         await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
       } catch (e) {
-        console.log("Failed to add the header for object on retry, continuing...");
-        console.log(e);
+        console.error(`Failed to add the header for object ${object.name} on retry, continuing...`);
+        console.error(e);
         continue;
       }
     }
@@ -326,8 +326,8 @@ async function migrateBucketHeaders(bucket) {
     await removeProjectKeyFromWhitelist(sdApiToken, project.name);
   } catch (e) {
     checkError(e);
-    console.log("Failed to remove project key from the whitelist after migrating bucket.");
-    console.log(e);
+    console.error(`Failed to remove project ${project.name} key from the whitelist after migrating bucket:`);
+    console.error(e);
     return;
   }
   bucket.headersMigrated = true;
@@ -350,7 +350,6 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
   try {
     // Retrieve a list of the current object segments
     segments = await getObjects(scopedToken, segment_bucket, segment_prefix);
-    console.log(segments);
 
     // Copy the segments as multipart parts
     const startMultipart = new CreateMultipartUploadCommand({
@@ -361,7 +360,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
     const multipartResp = await client.send(startMultipart);
     uploadId = multipartResp.UploadId;
   } catch (e) {
-    console.log("No multipart id for object, aborting.");
+    console.error("No multipart id for object, aborting.");
     throw e;
   }
 
@@ -384,8 +383,8 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       await client.send(multipartCopyCommand);
 
       // Check that the checksums match with the part and original
-      console.log(segment.hash);
-      console.log(await getObjectEtag(scopedToken, segment_bucket, segment.name));
+      console.log("Segment hash:", segment.hash);
+      console.log("Retrieved object etag:", await getObjectEtag(scopedToken, segment_bucket, segment.name));
 
       multipartParts.push({
         ETag: segment.hash,
@@ -402,13 +401,14 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       },
       UploadId: uploadId,
     });
-    const finishMultipartResponse = await client.send(finishMultipart);
-    console.log(finishMultipartResponse);
+    const finishMultipartResp = await client.send(finishMultipart);
+    console.log("Multipart upload completed");
+    devConsole.log("finishMultipartResp", finishMultipartResp);
 
     return multipartParts;
   } catch (err) {
     // Abort multipart copy
-    console.log("Failed to complete multipart upload");
+    console.error("Failed to complete multipart upload, aborting");
     const abortMultipart = new AbortMultipartUploadCommand({
       Bucket: convertedBucket,
       Key: key,
@@ -444,7 +444,8 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       ChecksumSHA256: hashSha256,
     });
     const putObjectResp = await client.send(putObject);
-    console.log(putObjectResp);
+    console.log(`Copied ${key} as one chunk.`);
+    devConsole.log("putObjectResp", putObjectResp);
 
     return hashSha256;
   }
@@ -459,10 +460,10 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
     });
     // Get the upload id
     const multipartResp = await client.send(startMultipart);
-    console.log(multipartResp);
+    devConsole.log("multipartResp", multipartResp);
     uploadId = multipartResp.UploadId;
   } catch (e) {
-    console.log("No multipart id for object, aborting.");
+    console.error("No multipart id for object, aborting.");
     throw e;
   }
 
@@ -490,7 +491,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
         ChecksumSHA256: hashSha256,
       });
       const multipartPartResp = await client.send(putObjectPart);
-      console.log(multipartPartResp);
+      devConsole.log("multipartPartResp", multipartPartResp);
       multipartParts.push({
         PartNumber: partNumber + 1,
         ETag: multipartPartResp.ETag.replaceAll('"', ""),
@@ -498,7 +499,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       });
       partNumber++;
     }
-    console.log(multipartParts);
+    console.log("Multipart upload parts", multipartParts);
 
     // Finish the multipart copy
     const finishMultipart = new CompleteMultipartUploadCommand({
@@ -509,13 +510,14 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       },
       UploadId: uploadId,
     });
-    const finishMultipartResponse = await client.send(finishMultipart);
-    console.log(finishMultipartResponse);
+    const finishMultipartResp = await client.send(finishMultipart);
+    console.log("Multipart upload completed");
+    devConsole.log("finishMultipartResp", finishMultipartResp);
 
     return multipartParts;
   } catch (err) {
     // Abort multipart copy
-    console.log("Multipart upload failed, aborting");
+    console.error("Multipart upload failed, aborting");
     const abortMultipart = new AbortMultipartUploadCommand({
       Bucket: convertedBucket,
       Key: key,
@@ -540,7 +542,7 @@ async function migrateBucketObjects(bucket) {
   for (const object of bucket.objects) {
     // Skip potentially done objects to continue from saved migration state
     if (object.contentDone) {
-      console.log("Skipping an already done object.");
+      console.log(`Skipping already done object ${object.key}.`);
       bucket.totalObjectsDone++;
       bucket.bytesDone += object.bytes;
       continue;
@@ -614,14 +616,13 @@ async function migrateBucketObjects(bucket) {
       let objectSize;
       try {
         const resp = await client.send(objectAccessCommand);
-        console.log("Copying object using multipart.");
+        console.log(`Copying object ${object.key} using multipart.`);
         const multipartParts = await multipartCopyObject(bucket.convertedName, object.key, manifest);
         object.multipartParts = multipartParts;
         objectSize = resp.ContentLength ?? 0;
-      } catch (e) {
-        console.log(e);
+      } catch {
         // If the object is inaccessible using S3 API, copy conventionally
-        console.log("Copying the object conventionally");
+        console.warn("Copying the object conventionally");
         const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
         const conventionalCopyParts = await conventionalCopyObject(
           bucket.name,
@@ -644,8 +645,8 @@ async function migrateBucketObjects(bucket) {
       bucket.bytesDone += object.bytes;
       bucket.totalObjectsDone++;
     } catch (e) {
-      console.log("Conventional copy failed.");
-      console.log(e);
+      console.error("Conventional copy failed:");
+      console.error(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
       if (object.manifestBackup && bucket.name === bucket.convertedName) {
         await putManifestObject(scopedToken, bucket.name, object.key, object.manifestBackup);
@@ -667,10 +668,11 @@ async function migrateBucketObjects(bucket) {
       Key: "migration-report-latest.json",
     });
     const reportResp = await client.send(putReportCommand);
-    console.log(reportResp);
+    console.log("Put migration report");
+    devConsole.log("reportResp", reportResp);
   } catch (e) {
-    console.log("Caught error when pushing migration success report.");
-    console.log(e);
+    console.error("Error pushing migration success report:");
+    console.error(e);
   }
 }
 
@@ -702,7 +704,7 @@ async function migrateBucketSharing(bucket) {
       console.error(`Error retrieving bucket ${bucket.name} policy: bucket does not exist`);
       throw e;
     } else {
-      console.log(`Bucket policy for ${bucket.name} cannot be retrieved: ${e?.name}`);
+      console.error(`Bucket policy for ${bucket.name} cannot be retrieved: ${e?.name}`);
     }
   }
   // Step 2. Retrieve the bucket ACLs
@@ -769,7 +771,7 @@ async function migrateBucketSharing(bucket) {
         // Retrieve the receiver project IDs
         const ids = await checkProjectIDs(receiver);
         if (ids?.id === undefined || ids?.name === undefined) {
-          console.log(`No project id cache for project ${receiver}, skipping`);
+          console.error(`No project id cache for project ${receiver}, skipping`);
           continue;
         }
         console.log(`Got project IDs: ${ids.id}, ${ids.name}`);
@@ -778,7 +780,7 @@ async function migrateBucketSharing(bucket) {
           oldSharingWhitelist = await checkSharingWhitelist(sdApiToken, project.name, bucket.name, ids.name);
         } catch (e) {
           checkError(e);
-          console.log(`Error retrieving sharing whitelist for bucket ${bucket.name}:`);
+          console.error(`Error retrieving sharing whitelist for bucket ${bucket.name}:`);
         }
         console.log(`Got sharing whitelist for bucket ${bucket.name}:`);
         console.log(oldSharingWhitelist?.data);
@@ -796,8 +798,8 @@ async function migrateBucketSharing(bucket) {
           await putSharingWhitelist(sdApiToken, project.name, bucket.convertedName, [ids]);
         } catch (e) {
           checkError(e);
-          console.log("Failed to add project sharing whitelist.");
-          console.log(e);
+          console.error("Failed to add project sharing whitelist.");
+          console.error(e);
         }
       }
       console.log(`Finished migrating sharing whitelist for bucket ${bucket.name}`);
@@ -912,7 +914,7 @@ async function checkMigrationReportNameMatch(targetBucket, bucket) {
       return true;
     }
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return false;
   }
   return false;
@@ -936,8 +938,8 @@ async function beginMigration() {
       },
     });
   } catch (e) {
-    console.log("Failed to create an S3 client. Reason/traceback:");
-    console.log(e);
+    console.error("Failed to create an S3 client. Reason/traceback:");
+    console.error(e);
     emit("error", interruptReasons.migrationError);
     return;
   }
@@ -985,8 +987,8 @@ async function beginMigration() {
         const targetBucket = await getTargetBucket(bucket.name);
         bucket.convertedName = targetBucket;
       } catch (e) {
-        console.log("Failed to select or create the target bucket. Reason/traceback:");
-        console.log(e);
+        console.error("Failed to select or create the target bucket. Reason/traceback:");
+        console.error(e);
         emit("error", interruptReasons.migrationError);
         return;
       }
@@ -998,8 +1000,8 @@ async function beginMigration() {
         });
         await client.send(headBucket);
       } catch (e) {
-        console.log("Failed to access existing bucket for migration. Reason/traceback:");
-        console.log(e);
+        console.error("Failed to access existing bucket for migration. Reason/traceback:");
+        console.error(e);
         emit("error", interruptReasons.migrationError);
         return;
       }
@@ -1012,8 +1014,8 @@ async function beginMigration() {
       await migrateBucketSharing(bucket);
       bucket.sharingMigrated = true;
     } catch (e) {
-      console.log("Bucket sharing migration failed. Reason/traceback:");
-      console.log(e);
+      console.error(`Bucket ${bucket.name} sharing migration failed. Reason/traceback:`);
+      console.error(e);
       emit("error", interruptReasons.migrationError);
       return;
     }
@@ -1024,8 +1026,8 @@ async function beginMigration() {
     try {
       await migrateBucketHeaders(bucket);
     } catch (e) {
-      console.log("Bucket header migration failed. Reason/traceback:");
-      console.log(e);
+      console.error(`Bucket ${bucket.name} header migration failed. Reason/traceback:`);
+      console.error(e);
       emit("error", interruptReasons.migrationError);
       return;
     }
@@ -1036,14 +1038,15 @@ async function beginMigration() {
     try {
       await migrateBucketObjects(bucket);
     } catch (e) {
-      console.log("Bucket objects migration failed. Reason/traceback:");
-      console.log(e);
+      console.error(`Bucket ${bucket.name} objects migration failed. Reason/traceback:`);
+      console.error(e);
       emit("error", interruptReasons.migrationError);
       return;
     }
     bucket.currentlyMigrating = false;
   }
 
+  console.log("Migration finished");
   // Emit the migrate process state after finalize
   emit("buckets-migrated", migrateBuckets.value);
 }

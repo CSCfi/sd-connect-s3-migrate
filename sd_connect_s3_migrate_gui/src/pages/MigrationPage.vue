@@ -85,6 +85,7 @@ import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
 import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
 import { interruptReasons } from "../scripts/common";
+import { devConsole } from "../renderer.js";
 
 // Type imports
 /**
@@ -130,9 +131,7 @@ const userExists = ref(false);
 
 onMounted(() => {
   // Attempt loading the possible previous migration state
-  loadMigrationState().then(() => {
-    console.log("Scheduled loading interrupted migration.");
-  });
+  loadMigrationState();
 });
 
 const preventSuspend = computed(() => {
@@ -156,8 +155,6 @@ watch(preventSuspend, (newValue) => {
  */
 async function saveMigrationState(buckets) {
   // The migration bucket list is missing part of the migration state
-  console.log("Migration state save called.");
-
   const migrationState = {
     username: toRaw(user.value),
     apiToken: toRaw(apiToken.value),
@@ -166,8 +163,6 @@ async function saveMigrationState(buckets) {
     buckets: buckets,
   };
 
-  console.log("Saving migration state:");
-  console.log(migrationState);
   await window.stateAPI.saveState(migrationState);
 
   return;
@@ -178,12 +173,10 @@ async function saveMigrationState(buckets) {
  * @returns { (MigrationState | null) } - The state of the interrupted migration
  */
 async function loadMigrationState() {
-  console.log("Loading migration state from default location.");
-
   const migrationState = await window.stateAPI.loadState();
 
   if (migrationState !== null) {
-    console.log("Found interrupted migration process. Continuing migration.");
+    console.log("Found interrupted migration process. Continuing migration:");
     console.log(migrationState);
 
     // Enter the parameters from the migration state
@@ -206,15 +199,18 @@ async function handleProjectDiscovery(unscoped) {
   unscopedToken.value = unscoped;
   projects.value = await discoverTokenProjects(unscoped);
 
+  console.log(`Got unscoped token for ${user.value}`);
+  devConsole.log("Unscoped token", unscopedToken.value);
+  console.log(`Got ${projects.value?.length} projects for ${user.value}`);
+
   if (migrationInterruptReason.value) {
-    console.log(activeProject.value);
     scopedToken.value = await getScopedToken(unscopedToken.value, activeProject.value.id);
+    console.log(`Got token scoped to ${activeProject.value.name}`);
+    devConsole.log("Scoped token", scopedToken.value);
     step.value = 4;
   } else {
     step.value += 1;
   }
-  console.log(user.value);
-  console.log(unscopedToken.value);
 }
 
 /**
@@ -225,7 +221,8 @@ async function selectProjectAndScopeToken(project) {
   if (activeProject.value?.id !== project.id) {
     activeProject.value = project;
     scopedToken.value = await getScopedToken(unscopedToken.value, project.id);
-    console.log(scopedToken.value);
+    console.log(`Got token scoped to ${activeProject.value.name}`);
+    devConsole.log("Scoped token", scopedToken.value);
   }
 
   step.value += 1;
@@ -237,7 +234,7 @@ async function selectProjectAndScopeToken(project) {
  */
 async function handleAddAPIToken(token) {
   apiToken.value = token;
-  console.log(apiToken.value);
+  console.log(`API token ${apiToken.value} added`);
 
   step.value += 1;
 }
@@ -247,8 +244,9 @@ async function handleAddAPIToken(token) {
  * @param {OpenstackBucket[]} buckets - buckets that are to be migrated
  */
 async function handleSelectBuckets(buckets) {
-  console.log(buckets);
   selectedBuckets.value = buckets;
+  console.log(`Selected ${buckets.length} bucket(s) for migration:`);
+  console.log(buckets.map((bucket) => toRaw(bucket)));
 
   step.value += 1;
 }
@@ -259,7 +257,8 @@ async function handleSelectBuckets(buckets) {
  */
 async function handleBucketsMigrated(buckets) {
   migratedBuckets.value = buckets;
-  console.log(migratedBuckets.value);
+  console.log(`Migrated ${buckets.length} bucket(s):`);
+  console.log(buckets.map((bucket) => toRaw(bucket)));
 
   // Clear the migration state
   await saveMigrationState(toRaw(buckets));

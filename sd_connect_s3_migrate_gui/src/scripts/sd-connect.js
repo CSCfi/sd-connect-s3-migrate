@@ -39,7 +39,6 @@ export async function sign_api_request(apiKey, path, lifetime = 3600) {
     false,
     ["sign"],
   );
-  console.log(key);
 
   // Get the signature
   const signature = await window.crypto.subtle.sign("HMAC", key, toSignArray);
@@ -85,8 +84,8 @@ async function _getProjectPublicKey(apiKey, projectName) {
     const key = Uint8Array.fromBase64(keyBase64);
     return key;
   } catch (e) {
-    console.log("Failed to retrieve the project public key");
-    console.log(e);
+    console.error(`Failed to retrieve the public key of ${projectName}:`);
+    console.error(e);
     throw e;
   }
 }
@@ -102,8 +101,7 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
   try {
     projectKey = await _getProjectPublicKey(apiKey, projectName);
   } catch (e) {
-    console.log("Aborting header retrieval due to no available project public key.");
-    console.log(e);
+    console.error("Aborting header retrieval due to no available project public key.");
     throw new Error("Could not retrieve project public key for addition.", { cause: e });
   }
 
@@ -127,8 +125,8 @@ export async function addProjectKeyToWhitelist(apiKey, projectName) {
       throw error;
     }
   } catch (e) {
-    console.log("Failed to add the project public key to re-encryption whitelist.");
-    console.log(e);
+    console.error("Failed to add the project public key to re-encryption whitelist:");
+    console.error(e);
     throw new Error("Could not add project public key to whitelist.", { cause: e });
   }
 }
@@ -159,8 +157,8 @@ export async function removeProjectKeyFromWhitelist(apiKey, projectName) {
       throw error;
     }
   } catch (e) {
-    console.log("Failed to delete the project public key from re-encryption whitelist.");
-    console.log(e);
+    console.error("Failed to delete the project public key from re-encryption whitelist:");
+    console.error(e);
     throw new Error("Could not remove the project public key from the whitelist.", { cause: e });
   }
 }
@@ -198,9 +196,9 @@ export async function getFileHeader(apiKey, projectName, bucket, key) {
     }
     throw new Error("Header was empty.");
   } catch (e) {
-    console.log("Failed to retrieve a working header for the file.");
-    console.log("The file may be added for v1.");
-    console.log(e);
+    console.error(`Failed to retrieve a working header for the file ${key}:`);
+    console.error(e);
+    console.error("The file may be added for v1.");
     throw new Error("No header for file.", { cause: e });
   }
 }
@@ -230,15 +228,15 @@ export async function putFileHeader(apiKey, projectName, bucket, key, header) {
       body: header,
     });
     if (headerResp.status != 204) {
-      console.log("Failed to add a new header.");
+      console.error(`Failed to add a new header for ${key}.`);
 
       const error = new Error("HTTP error");
       error.status = headerResp.status;
       throw error;
     }
   } catch (e) {
-    console.log("Failed to put header for the file.");
-    console.log(e);
+    console.error(`Failed to put header for ${key}:`);
+    console.error(e);
     throw new Error("Header addition failed.", { cause: e });
   }
 }
@@ -271,11 +269,12 @@ export async function checkSharingWhitelist(apiKey, projectName, bucket, receive
     }
     whitelist = await whitelistResp.json();
   } catch (e) {
-    console.log("Failed to retrieve bucket sharing whitelist");
-    console.log(e);
+    console.error(`Failed to retrieve bucket ${bucket} sharing whitelist:`);
+    console.error(e);
     whitelist = {};
   }
 
+  console.log(`Retrieved bucket ${bucket} sharing whitelist:`);
   console.log(whitelist);
 
   return whitelist;
@@ -293,13 +292,13 @@ export async function checkProjectIDs(projectName) {
   try {
     const idResp = await fetch(idUrl);
     if (idResp.status === 204) {
-      console.log("Project doesn't exist in the sharing whitelist for bucket.");
+      console.error("Project doesn't exist in the sharing whitelist for bucket.");
       return undefined;
     }
     ids = await idResp.json();
   } catch (e) {
-    console.log("Failed to retrieve the project id query");
-    console.log(e);
+    console.error("Failed to retrieve the project id query:");
+    console.error(e);
     return undefined;
   }
 
@@ -335,8 +334,8 @@ export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist
       throw error;
     }
   } catch (e) {
-    console.log("Failed to put bucket sharing whitelist.");
-    console.log(e);
+    console.error("Failed to put bucket sharing whitelist:");
+    console.error(e);
     throw new Error("Failed to add bucket sharing whitelist.", { cause: e });
   }
 }

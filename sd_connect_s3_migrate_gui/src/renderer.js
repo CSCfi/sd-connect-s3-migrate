@@ -45,4 +45,19 @@ defineCustomElements();
 
 app.mount("#app");
 
+const originalConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  info: console.info.bind(console),
+};
+
+// For explicit console-only output in the renderer process
+export const devConsole = {
+  log: (...args) => originalConsole.log("DEV:", ...args),
+  warn: (...args) => originalConsole.warn("DEV:", ...args),
+  error: (...args) => originalConsole.error("DEV:", ...args),
+  info: (...args) => originalConsole.info("DEV:", ...args),
+};
+
 Object.assign(console, log.functions);
