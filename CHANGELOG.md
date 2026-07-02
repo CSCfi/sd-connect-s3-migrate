@@ -35,6 +35,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Make logging more readable (#84)
 - Convert dots to dashes in bucket names (#79)
 
 ## [2026.4.19] - 2026-04-24
