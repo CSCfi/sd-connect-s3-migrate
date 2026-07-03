@@ -18,6 +18,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Added original object and bucket deletion (#5)
 - (users) log file containing useful debug information at `~/Documents/SD-Connect-S3-Migrate/migration-logfile.log`
 - logging of browser console to file via `electron-log`
 - Prevent converted bucket name collision (#78)
@@ -35,6 +36,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Fixed object caching causing migration errors (#48)
+- Fixed migration report ending up in the wrong bucket
 - Make logging more readable (#84)
 - Convert dots to dashes in bucket names (#79)
 
