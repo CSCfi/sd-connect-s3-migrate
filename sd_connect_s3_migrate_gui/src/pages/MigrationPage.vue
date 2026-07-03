@@ -33,7 +33,7 @@
           @go-back="goBack"
           :project="activeProject"
           :scopedToken="scopedToken"
-          :s3address="getS3endpoint()"
+          :s3client="s3client"
         />
       </div>
 
@@ -48,7 +48,7 @@
           :oldMigrateBuckets="oldMigrateBuckets"
           :scopedToken="scopedToken"
           :project="activeProject"
-          :s3address="getS3endpoint()"
+          :s3client="s3client"
         />
         <ResumeMigration
           v-else
@@ -65,6 +65,8 @@
         <Results
           :project="activeProject"
           :migratedBuckets="migratedBuckets"
+          :scopedToken="scopedToken"
+          :s3client="s3client"
           @start-new-conversion="startNewConversion"
         />
       </div>
@@ -83,9 +85,10 @@ import SelectBuckets from "../components/SelectBuckets.vue";
 import Migration from "../components/BucketMigration.vue";
 import ResumeMigration from "../components/ResumeMigration.vue";
 import Results from "../components/MigrationResults.vue";
-import { discoverTokenProjects, getS3endpoint, getScopedToken } from "../scripts/openstack";
-import { interruptReasons } from "../scripts/common";
+import { discoverTokenProjects, getScopedToken } from "../scripts/openstack";
+import { getTimestamp, interruptReasons } from "../scripts/common";
 import { devConsole } from "../renderer.js";
+import { createS3Client } from "../scripts/s3.js";
 
 // Type imports
 /**
@@ -129,6 +132,8 @@ const migratedBuckets = ref([]);
 // Track whether this component updates user value
 const userExists = ref(false);
 
+const s3client = ref(null);
+
 onMounted(() => {
   // Attempt loading the possible previous migration state
   loadMigrationState();
@@ -149,6 +154,20 @@ watch(preventSuspend, (newValue) => {
   }
 });
 
+watch(scopedToken, async (newToken) => {
+  if (newToken) {
+    try {
+      s3client.value = await createS3Client(newToken, activeProject.value.id);
+      console.log("Created S3 client");
+    } catch (e) {
+      console.error("Failed to create S3 client. Reason/traceback:");
+      console.error(e);
+    }
+  } else {
+    s3client.value = null;
+  }
+});
+
 /**
  * Save the migration state to default location
  * @param {MigrationBucketList} buckets - the list of buckets as the current migration state
@@ -158,7 +177,7 @@ async function saveMigrationState(buckets) {
   const migrationState = {
     username: toRaw(user.value),
     apiToken: toRaw(apiToken.value),
-    timestamp: Math.floor(Date.now() / 1000),
+    timestamp: getTimestamp(),
     project: toRaw(activeProject.value),
     buckets: buckets,
   };

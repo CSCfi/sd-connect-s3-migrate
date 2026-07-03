@@ -194,6 +194,7 @@ export async function getBuckets(token) {
         headers: {
           "X-Auth-Token": token,
         },
+        cache: "no-cache",
       });
 
       bucket_page = await resp.json();
@@ -228,6 +229,7 @@ export async function getBucketACLs(token, bucket) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     let readAcl = resp.headers.get("X-Container-Read");
@@ -296,6 +298,7 @@ export async function getObjects(token, bucket, prefix = "") {
         headers: {
           "X-Auth-Token": token,
         },
+        cache: "no-cache",
       });
 
       object_page = await resp.json();
@@ -327,6 +330,7 @@ export async function checkObjectManifest(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     // Currently we only support DLO manifests, not SLO, as SD Connect tools
@@ -390,6 +394,7 @@ export async function getObjectMeta(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     objectMeta.size = Number(resp.headers.get("Content-Length"));
@@ -456,6 +461,7 @@ export async function getObjectEtag(token, bucket, key) {
       headers: {
         "X-Auth-Token": token,
       },
+      cache: "no-cache",
     });
 
     // retrieve the etag from the response
@@ -466,4 +472,64 @@ export async function getObjectEtag(token, bucket, key) {
   }
 
   return etag;
+}
+
+/**
+ * Delete a bucket
+ * @param {string} token - a scoped OpenStack auth token
+ * @param {string} bucket - the name of the bucket
+ * @returns {Promise<boolean>} - true if deleted successfully
+ */
+export async function deleteBucket(token, bucket) {
+  console.log(`Deleting bucket ${bucket}`);
+
+  try {
+    const bucketURL = new URL(`${object_storage_endpoint}/${bucket}`);
+
+    const resp = await fetch(bucketURL, {
+      method: "DELETE",
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Failed to delete bucket ${bucket}: ${resp.status} ${resp.statusText}`);
+    }
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
+/**
+ * Delete an object
+ * @param {string} token - a scoped OpenStack auth token
+ * @param {string} bucket - the bucket the object is in
+ * @param {string} key - the name of the object
+ * @returns {Promise<boolean>} - true if deleted successfully
+ */
+export async function deleteObject(token, bucket, key) {
+  console.log(`Deleting object ${key}`);
+
+  try {
+    const objectURL = new URL(`${object_storage_endpoint}/${bucket}/${key}`);
+
+    const resp = await fetch(objectURL, {
+      method: "DELETE",
+      headers: {
+        "X-Auth-Token": token,
+      },
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Failed to delete object ${key}: ${resp.status} ${resp.statusText}`);
+    }
+
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
 }
