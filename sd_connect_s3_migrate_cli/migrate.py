@@ -13,6 +13,8 @@ import tqdm
 import aioboto3
 import aiobotocore.response
 
+import botocore.exceptions
+
 import sd_lock_utility.types
 import sd_lock_utility.exceptions
 import sd_lock_utility.client
@@ -148,8 +150,7 @@ async def wrap_stream_progress(
     body: aiobotocore.response.StreamingBody, t: tqdm.std.tqdm
 ) -> typing.AsyncGenerator[bytes, None]:
     """Wrap the stream progress in an iterator to display a progress bar."""
-    async for chunk in body.iter_chunks():
-        t.update(len(chunk))
+    async for chunk in body.iter_chunked(65564):
         yield chunk
 
 
@@ -171,13 +172,27 @@ async def copy_multipart_part_streaming(
         },
     ) as resp:
         if not dry_run:
-            await session["s3_client"].upload_part(
-                Bucket=opts["to_bucket"],
-                PartNumber={migration_object_part["originalKey"].split("/")[-1]},
-                UploadId=upload_id,
-                Body=wrap_stream_progress(resp.content, progress_bar),
-                ContentMD5=migration_object_part["ETag"],
+            object_url: str = await session["s3_client"].generate_presigned_url(
+                ClientMethod="upload_part",
+                HttpMethod="PUT",
+                Params={
+                    "Bucket": opts["to_bucket"],
+                    "Key": migration_object["key"],
+                    "PartNumber": int(
+                        migration_object_part["originalKey"].split("/")[-1]
+                    ),
+                    "UploadId": upload_id,
+                    "ContentMD5": migration_object_part["ETag"],
+                },
+                ExpiresIn=24 * 3600,
             )
+
+            async with session["client"].put(
+                object_url,
+                data=wrap_stream_progress(resp.content, progress_bar),
+            ) as resp:
+                click.echo(resp)
+                click.echo(await resp.text())
         else:
             progress_bar.update(int(resp.headers["Content-Length"]))
 
@@ -197,12 +212,22 @@ async def copy_object_streaming(
         },
     ) as resp:
         if not dry_run:
-            await session["s3_client"].put_object(
-                Bucket=opts["to_bucket"],
-                Key=migration_object["key"],
-                Body=wrap_stream_progress(resp.content, progress_bar),
-                ContentMD5=migration_object["ETag"],
+            object_url: str = await session["s3_client"].generate_presigned_url(
+                ClientMethod="put_object",
+                HttpMethod="PUT",
+                Params={
+                    "Bucket": opts["to_bucket"],
+                    "Key": migration_object["key"],
+                    "ContentMD5": migration_object["ETag"],
+                },
+                ExpiresIn=24 * 3600,
             )
+
+            async with session["client"].put(
+                object_url, data=wrap_stream_progress(resp.content, progress_bar)
+            ) as resp:
+                click.echo(resp)
+                click.echo(await resp.text())
         else:
             progress_bar.update(int(resp.headers["Content-Length"]))
 
@@ -221,7 +246,7 @@ async def copy_multipart_part_hardware(
         await session["s3_client"].upload_part_copy(
             Bucket=opts["to_bucket"],
             Key=migration_object["key"],
-            PartNumber={migration_object_part["originalKey"].split("/")[-1]},
+            PartNumber=int(migration_object_part["originalKey"].split("/")[-1]),
             UploadId=upload_id,
             CopySource={
                 "Bucket": f"{migration_object['manifestBackup'].split("/")[0]}",
@@ -484,7 +509,7 @@ async def initialize_conversion(
         # Copy the bucket respective session for sd lock util
         bucket_session = lock_util_session.copy()
         bucket_session["container"] = bucket["name"]
-        bucket_sessions[bucket["name"]] = bucket_sessions
+        bucket_sessions[bucket["name"]] = bucket_session
 
         # Fetch a list of the bucket objects
         bucket_objects = await sd_lock_utility.os_client.get_container_objects(
@@ -542,58 +567,66 @@ async def initialize_conversion(
         session = bucket_sessions[migration_bucket["name"]]
         tmp_opts = init_opts(session, migration_bucket)
         await sd_lock_utility.os_client.init_s3_credentials(session)
-        session["s3_client"] = aioboto3.Session.client(
+
+        click.echo(session)
+
+        async with aioboto3.Session().client(
             service_name="s3",
-            endpoint_url=bucket_sessions[bucket["name"]]["s3_endpoint_url"],
-            aws_access_key_id=bucket_sessions[bucket["name"]]["ec2_access_key"],
-            aws_secret_access_key=bucket_sessions[bucket["name"]]["ec2_secret_key"],
-        )
+            endpoint_url=session["s3_endpoint_url"],
+            aws_access_key_id=session["ec2_access_key"],
+            aws_secret_access_key=session["ec2_secret_key"],
+        ) as s3:
+            session["s3_client"] = s3
 
-        # Migrate bucket objects
-        ## Check if the bucket can be accessed using S3
-        s3_accessible = True
-        try:
-            await sd_lock_utility.s3_client.s3_check_container(
-                session, tmp_opts, migration_bucket["name"]
-            )
-        except sd_lock_utility.exceptions.S3IncompatibleBucketName:
-            s3_accessible = False
-        ## Create the destination bucket if the bucket name changes
-        if migration_bucket["name"] != migration_bucket["convertedName"]:
-            # Currently need to temporarily override the session bucket to force s3 to verify the new one
-            session["container"] = migration_bucket["convertedName"]
-            await sd_lock_utility.s3_client.s3_create_container(session, tmp_opts)
-            session["container"] = migration_bucket["name"]
+            # Migrate bucket objects
+            ## Check if the bucket can be accessed using S3
+            s3_accessible = True
+            try:
+                await sd_lock_utility.s3_client.s3_check_container(
+                    session, tmp_opts, migration_bucket["name"]
+                )
+            except sd_lock_utility.exceptions.S3IncompatibleBucketName:
+                s3_accessible = False
+            except botocore.exceptions.ParamValidationError:
+                s3_accessible = False
+            ## Create the destination bucket if the bucket name changes
+            if migration_bucket["name"] != migration_bucket["convertedName"]:
+                # Currently need to temporarily override the session bucket to force s3 to verify the new one
+                session["container"] = migration_bucket["convertedName"]
+                await sd_lock_utility.s3_client.s3_create_container(session, tmp_opts)
+                session["container"] = migration_bucket["name"]
 
-        ## Start the file migration
-        for migration_object in tqdm.tqdm(
-            migration_bucket["objects"],
-            desc=f"Concatenating files to bucket {migration_bucket['convertedName']}",
-        ):
-            migration_bucket["currentlyMigratingFile"] = migration_object["key"]
-            ## Migrate the object content
-            await wrap_object_copy(
-                session, tmp_opts, migration_object, s3_accessible, dry_run
-            )
-            migration_bucket["totalObjectsDone"] += 1
-        migration_bucket["currentlyMigratingFile"] = ""
+            ## Start the file migration
+            for migration_object in tqdm.tqdm(
+                migration_bucket["objects"],
+                desc=f"Concatenating files to bucket {migration_bucket['convertedName']}",
+            ):
+                migration_bucket["currentlyMigratingFile"] = migration_object["key"]
+                ## Migrate the object content
+                await wrap_object_copy(
+                    session, tmp_opts, migration_object, s3_accessible, dry_run
+                )
+                migration_bucket["totalObjectsDone"] += 1
+            migration_bucket["currentlyMigratingFile"] = ""
 
-        # Migrate bucket headers
-        click.echo(f"Migrating headers for bucket {bucket['name']}")
-        if not dry_run:
-            await sd_lock_utility.migrate.bucket_copy_headers(tmp_opts, session)
-            migration_bucket["totalHeadersDone"] = len(migration_bucket["objects"])
-            migration_bucket["headersMigrated"] = True
+            # Migrate bucket headers
+            click.echo(f"Migrating headers for bucket {bucket['name']}")
+            if not dry_run:
+                await sd_lock_utility.migrate.bucket_copy_headers(tmp_opts, session)
+                migration_bucket["totalHeadersDone"] = len(migration_bucket["objects"])
+                migration_bucket["headersMigrated"] = True
 
-        # Migrate bucket sharing
-        click.echo(f"Migrating sharing for bucket {bucket['name']}")
-        if not dry_run:
-            await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session)
-            migration_bucket["sharingMigrated"] = True
+            # Migrate bucket sharing
+            click.echo(f"Migrating sharing for bucket {bucket['name']}")
+            if not dry_run:
+                await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session)
+                migration_bucket["sharingMigrated"] = True
 
-        migration_bucket["currentlyMigrating"] = False
+            migration_bucket["currentlyMigrating"] = False
 
     click.echo("Migration finished, displaying the final migration state: ")
     click.echo(migration)
+
+    lock_util_session["client"].close()
 
     return ret
