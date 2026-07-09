@@ -3,6 +3,7 @@ import typing
 
 class MigrationObjectPart(typing.TypedDict):
     key: str
+    bytes: int
     originalKey: str
     checksumSha256: typing.NotRequired[str]
     ETag: typing.NotRequired[str]

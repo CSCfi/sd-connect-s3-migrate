@@ -1,9 +1,14 @@
 """Curses rendering for TUI to select the project and buckets."""
 
-
 import curses
 
 import sd_connect_s3_migrate_cli.types
+
+
+bucket_type = (
+    list[sd_connect_s3_migrate_cli.types.OpenstackBucket]
+    | list[sd_connect_s3_migrate_cli.types.OpenstackProject]
+)
 
 
 def _truncate(text: str, width: int) -> str:
@@ -22,8 +27,11 @@ def _truncate(text: str, width: int) -> str:
 
 def _selection_screen(
     stdscr: curses.window,
-    buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] | list[sd_connect_s3_migrate_cli.types.OpenstackProject],
-) -> list[sd_connect_s3_migrate_cli.types.OpenstackBucket] | list[sd_connect_s3_migrate_cli.types.OpenstackProject]:
+    buckets: bucket_type,
+) -> (
+    list[sd_connect_s3_migrate_cli.types.OpenstackBucket]
+    | list[sd_connect_s3_migrate_cli.types.OpenstackProject]
+):
     """Display a selector for a project or bucket list using curses."""
     curses.curs_set(0)
 
@@ -38,10 +46,7 @@ def _selection_screen(
         stdscr.erase()
 
         header = (
-            "Space: toggle selection  "
-            "↑/↓: navigate  "
-            "Enter: confirm  "
-            "q: cancel"
+            "Space: toggle selection  " "↑/↓: navigate  " "Enter: confirm  " "q: cancel"
         )
 
         stdscr.addnstr(0, 0, header, width - 1)
@@ -97,11 +102,7 @@ def _selection_screen(
             else:
                 selected.add(current_index)
         elif key in (10, 13, curses.KEY_ENTER):
-            return [
-                bucket
-                for i, bucket in enumerate(buckets)
-                if i in selected
-            ]
+            return [bucket for i, bucket in enumerate(buckets) if i in selected]  # type: ignore
         elif key == ord("q"):
             return []
 
@@ -109,9 +110,10 @@ def _selection_screen(
 def select_buckets(
     buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket],
 ) -> list[sd_connect_s3_migrate_cli.types.OpenstackBucket]:
-    return curses.wrapper(_selection_screen, buckets)
+    return curses.wrapper(_selection_screen, buckets)  # type: ignore
+
 
 def select_projects(
     projects: list[sd_connect_s3_migrate_cli.types.OpenstackProject],
-) -> list [sd_connect_s3_migrate_cli.types.OpenstackProject]:
-    return curses.wrapper(_selection_screen, projects)
+) -> list[sd_connect_s3_migrate_cli.types.OpenstackProject]:
+    return curses.wrapper(_selection_screen, projects)  # type: ignore
