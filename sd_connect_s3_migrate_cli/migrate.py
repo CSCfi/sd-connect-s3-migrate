@@ -10,10 +10,12 @@ import anyascii
 
 import tqdm
 
+import boto3
 import aioboto3
 import aiobotocore.response
 
 import botocore.exceptions
+import botocore.config
 
 import sd_lock_utility.types
 import sd_lock_utility.exceptions
@@ -79,8 +81,8 @@ def init_opts(
         "no_preserve_original": False,
         "no_check_certificate": False,
         "progress": False,
-        "debug": False,
-        "verbose": False,
+        "debug": True,
+        "verbose": True,
         "use_s3": True,
         "ec2_access_key": session["ec2_access_key"],
         "ec2_secret_key": session["ec2_secret_key"],
@@ -151,6 +153,7 @@ async def wrap_stream_progress(
 ) -> typing.AsyncGenerator[bytes, None]:
     """Wrap the stream progress in an iterator to display a progress bar."""
     async for chunk in body.iter_chunked(65564):
+        t.update(len(chunk))
         yield chunk
 
 
@@ -164,6 +167,26 @@ async def copy_multipart_part_streaming(
     dry_run: bool = False,
 ):
     """Copy a multipart part by streaming it through the host connection."""
+
+    # Try generating the object url with standard boto3
+    boto3_session = boto3.Session(
+        aws_access_key_id=session["ec2_access_key"],
+        aws_secret_access_key=session["ec2_secret_key"],
+        region_name="default",
+    )
+    s3 = boto3_session.client("s3", endpoint_url=session["s3_endpoint_url"])
+    object_url: str = s3.generate_presigned_url(
+        ClientMethod="upload_part",
+        Params={
+            "Bucket": opts["to_bucket"],
+            "Key": migration_object["key"],
+            "PartNumber": int(migration_object_part["originalKey"].split("/")[-1]),
+            "UploadId": upload_id,
+            # "ChecksumMD5": migration_object_part["ETag"],
+        },
+        ExpiresIn=3600,
+    )
+
     async with session["client"].get(
         f"{session['openstack_object_storage_endpoint']}/{migration_object['manifestBackup']}"
         + f"{migration_object_part['originalKey'].split('/')[-1]}",
@@ -172,27 +195,15 @@ async def copy_multipart_part_streaming(
         },
     ) as resp:
         if not dry_run:
-            object_url: str = await session["s3_client"].generate_presigned_url(
-                ClientMethod="upload_part",
-                HttpMethod="PUT",
-                Params={
-                    "Bucket": opts["to_bucket"],
-                    "Key": migration_object["key"],
-                    "PartNumber": int(
-                        migration_object_part["originalKey"].split("/")[-1]
-                    ),
-                    "UploadId": upload_id,
-                    "ContentMD5": migration_object_part["ETag"],
-                },
-                ExpiresIn=24 * 3600,
-            )
-
             async with session["client"].put(
                 object_url,
+                headers={
+                    # "Checksum-MD5": f"migration_object_part['ETag']",
+                    "Content-Length": str(migration_object_part["bytes"]),
+                },
                 data=wrap_stream_progress(resp.content, progress_bar),
             ) as resp:
-                click.echo(resp)
-                click.echo(await resp.text())
+                pass
         else:
             progress_bar.update(int(resp.headers["Content-Length"]))
 
@@ -205,6 +216,30 @@ async def copy_object_streaming(
     dry_run: bool = False,
 ):
     """Copy the object in full by streaming it through the host connection."""
+    # Try generating the presigned url with standard boto3
+    boto3_session = boto3.Session(
+        aws_access_key_id=session["ec2_access_key"],
+        aws_secret_access_key=session["ec2_secret_key"],
+        region_name="default",
+    )
+    s3 = boto3_session.client(
+        "s3",
+        endpoint_url=session["s3_endpoint_url"],
+        config=botocore.config.Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "virtual"},
+        ),
+    )
+    object_url: str = s3.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": opts["to_bucket"],
+            "Key": migration_object["key"],
+            # "ContentMD5": migration_object["ETag"],
+        },
+        ExpiresIn=3600,
+    )
+
     async with session["client"].get(
         f"{session['openstack_object_storage_endpoint']}/{session['container']}/{migration_object['key']}",
         headers={
@@ -212,22 +247,15 @@ async def copy_object_streaming(
         },
     ) as resp:
         if not dry_run:
-            object_url: str = await session["s3_client"].generate_presigned_url(
-                ClientMethod="put_object",
-                HttpMethod="PUT",
-                Params={
-                    "Bucket": opts["to_bucket"],
-                    "Key": migration_object["key"],
-                    "ContentMD5": migration_object["ETag"],
-                },
-                ExpiresIn=24 * 3600,
-            )
-
             async with session["client"].put(
-                object_url, data=wrap_stream_progress(resp.content, progress_bar)
+                object_url,
+                headers={
+                    # "Content-MD5": migration_object["ETag"],
+                    "Content-Length": str(migration_object["bytes"]),
+                },
+                data=wrap_stream_progress(resp.content, progress_bar),
             ) as resp:
-                click.echo(resp)
-                click.echo(await resp.text())
+                pass
         else:
             progress_bar.update(int(resp.headers["Content-Length"]))
 
@@ -611,15 +639,18 @@ async def initialize_conversion(
 
             # Migrate bucket headers
             click.echo(f"Migrating headers for bucket {bucket['name']}")
+            click.echo(session.copy())
             if not dry_run:
-                await sd_lock_utility.migrate.bucket_copy_headers(tmp_opts, session)
+                await sd_lock_utility.migrate.bucket_copy_headers(
+                    tmp_opts, session.copy()
+                )
                 migration_bucket["totalHeadersDone"] = len(migration_bucket["objects"])
                 migration_bucket["headersMigrated"] = True
 
             # Migrate bucket sharing
             click.echo(f"Migrating sharing for bucket {bucket['name']}")
             if not dry_run:
-                await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session)
+                await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session.copy())
                 migration_bucket["sharingMigrated"] = True
 
             migration_bucket["currentlyMigrating"] = False
