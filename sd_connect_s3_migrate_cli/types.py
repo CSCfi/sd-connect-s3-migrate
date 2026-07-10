@@ -48,7 +48,7 @@ class OpenstackProject(typing.TypedDict):
 
 class MigrationState(typing.TypedDict):
     buckets: MigrationBucketList
-    timestamp: str
+    timestamp: int
     username: str
     apiToken: str
     project: OpenstackProject

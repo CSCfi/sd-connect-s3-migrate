@@ -4,6 +4,7 @@ import os
 import re
 import typing
 import json
+import datetime
 
 import aiohttp
 import click
@@ -28,6 +29,7 @@ import sd_lock_utility.s3_client
 
 import sd_connect_s3_migrate_cli.select
 import sd_connect_s3_migrate_cli.types
+import sd_connect_s3_migrate_cli.state
 
 
 def convert_bucket_name(bucket: str, bucket_suffix: str = "") -> str:
@@ -429,12 +431,36 @@ async def initialize_conversion(
     # Clear the auth url
     lock_util_session["openstack_auth_url"] = ""
 
-    # Retrieve the login infromation via CLI if it was not provided
-    lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
-    if not lock_util_session["openstack_username"]:
-        lock_util_session["openstack_username"] = click.prompt(
-            "Please enter your Openstack username", default=""
+    # Handle the possible previous migration
+    previous_state: sd_connect_s3_migrate_cli.types.MigrationState = (
+        sd_connect_s3_migrate_cli.state.load_migration_state(data_dir)  # type: ignore
+    )
+    continue_migration: bool = False
+    if previous_state is not None:
+        # Continuing from previous state
+        click.echo(
+            f"Discovered an interrupted migration for project {previous_state['project']['name']}"
         )
+        click.echo(
+            f"Previous migration was interrupted at {datetime.datetime.fromtimestamp(previous_state['timestamp']).isoformat()}"
+        )
+        click.echo("Following buckets are being migrated: ")
+        for aborted_bucket in previous_state["buckets"]:
+            click.echo(f"{aborted_bucket['name']} --> {aborted_bucket['convertedName']}")
+
+        continue_migration = click.confirm(
+            "Do you want to continue the interrupted migration?", default=False
+        )
+
+    # Retrieve the login infromation via CLI if it was not provided
+    if continue_migration:
+        lock_util_session["openstack_username"] = previous_state["username"]
+    else:
+        lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
+        if not lock_util_session["openstack_username"]:
+            lock_util_session["openstack_username"] = click.prompt(
+                "Please enter your Openstack username", default=""
+            )
 
     lock_util_session["openstack_password"] = os.environ.get("OS_PASSWORD", "")
     lock_util_session["openstack_token"] = os.environ.get("OS_AUTH_TOKEN", "")
@@ -476,28 +502,56 @@ async def initialize_conversion(
         projects: sd_lock_utility.types.OpenstackProjectList = (
             await sd_lock_utility.os_client.openstack_get_projects(lock_util_session)
         )
-        while True:
-            project = sd_connect_s3_migrate_cli.select.select_projects(
-                projects["projects"]
-            )
 
-            if len(project) > 1:
-                click.echo(
-                    "Migrating multiple projects at once is not yet supported. "
-                    + "Please select your project again.",
-                    err=True,
+        if continue_migration:
+            # Check that the interrupted migration project is available
+            if previous_state["project"]["id"] not in [
+                project["id"]
+                for project in filter(
+                    lambda project: project["id"] == previous_state["project"]["id"],
+                    projects["projects"],
                 )
-            else:
-                break
+            ]:
+                click.echo(
+                    f"Project {previous_state['project']['name']} not in projects listed in authentication."
+                )
+                if click.confirm(
+                    "Do you want to cancel the previous migration and abort?",
+                    default=True,
+                ):
+                    sd_connect_s3_migrate_cli.state.cancel_migration(data_dir)
+                return 3
 
-        lock_util_session["openstack_project_id"] = project[0]["id"]
-        lock_util_session["openstack_project_name"] = project[0]["name"]
+            lock_util_session["openstack_project_id"] = previous_state["project"]["id"]
+            lock_util_session["openstack_project_name"] = previous_state["project"][
+                "name"
+            ]
+
+        else:
+            while True:
+                project = sd_connect_s3_migrate_cli.select.select_projects(
+                    projects["projects"]
+                )
+
+                if len(project) > 1:
+                    click.echo(
+                        "Migrating multiple projects at once is not yet supported. "
+                        + "Please select your project again.",
+                        err=True,
+                    )
+                else:
+                    break
+
+            lock_util_session["openstack_project_id"] = project[0]["id"]
+            lock_util_session["openstack_project_name"] = project[0]["name"]
 
     click.echo(f"Selected project id: {lock_util_session['openstack_project_id']}")
     click.echo(f"Selected project name: {lock_util_session['openstack_project_name']}")
 
     # Retrieve the SD Connect API token via CLI if it was not provided
     sd_connect_api_token: str = os.environ.get("SD_CONNECT_API_TOKEN", "")
+    if continue_migration:
+        sd_connect_api_token = previous_state["apiToken"]
     if not sd_connect_api_token:
         sd_connect_api_token = click.prompt("Please enter the SD Connect API token")
     lock_util_session["token"] = sd_connect_api_token.encode("utf-8")
@@ -511,85 +565,113 @@ async def initialize_conversion(
         return 2
 
     # Select the buckets to migrate
-    all_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-        await sd_lock_utility.os_client.get_containers(lock_util_session)
-    )
-
-    click.echo(f"Got in total {len(all_buckets)} buckets from the listing.")
-
-    while True:
-        buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-            sd_connect_s3_migrate_cli.select.select_buckets(all_buckets)
+    if not continue_migration:
+        all_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
+            await sd_lock_utility.os_client.get_containers(lock_util_session)
         )
 
-        if len(buckets) < 1:
-            click.echo("You must select at least one bucket for migration.", err=True)
-        elif len(buckets) > 1:
-            click.echo(f"Selected {len(buckets)} for migration.")
-            break
-        else:
-            click.echo(f"Selected bucket \"{buckets[0]['name']}\" for migration.")
-            break
+        click.echo(f"Got in total {len(all_buckets)} buckets from the listing.")
+
+        while True:
+            buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
+                sd_connect_s3_migrate_cli.select.select_buckets(all_buckets)
+            )
+
+            if len(buckets) < 1:
+                click.echo("You must select at least one bucket for migration.", err=True)
+            elif len(buckets) > 1:
+                click.echo(f"Selected {len(buckets)} for migration.")
+                break
+            else:
+                click.echo(f"Selected bucket \"{buckets[0]['name']}\" for migration.")
+                break
 
     bucket_sessions: dict[str, sd_lock_utility.types.SDAPISession] = {}
 
     # Initialize the migration status
     migration: sd_connect_s3_migrate_cli.types.MigrationBucketList = []
-    for bucket in buckets:
-        # Copy the bucket respective session for sd lock util
-        bucket_session = lock_util_session.copy()
-        bucket_session["container"] = bucket["name"]
-        bucket_sessions[bucket["name"]] = bucket_session
+    if continue_migration:
+        migration = previous_state["buckets"]
 
-        # Fetch a list of the bucket objects
-        bucket_objects = await sd_lock_utility.os_client.get_container_objects(
-            bucket_session, raw=True
-        )
-        segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem] = []
+        for migration_bucket in migration:
+            bucket_session = lock_util_session.copy()
+            bucket_session["container"] = migration_bucket["name"]
+            bucket_sessions[migration_bucket["name"]] = bucket_session
+    else:
+        for bucket in buckets:
+            # Copy the bucket respective session for sd lock util
+            bucket_session = lock_util_session.copy()
+            bucket_session["container"] = bucket["name"]
+            bucket_sessions[bucket["name"]] = bucket_session
 
-        bucket_bytes = bucket["bytes"]
-        if segment_bucket := list(
-            filter(lambda b: b["name"] == f"{bucket['name']}_segments", all_buckets)
-        ):
-            click.echo(
-                f"Matching segments bucket found for {bucket['name']}, caching segment bucket contents"
+            # Fetch a list of the bucket objects
+            bucket_objects = await sd_lock_utility.os_client.get_container_objects(
+                bucket_session, raw=True
             )
-            bucket_bytes += segment_bucket[0]["bytes"]
-            segment_session = bucket_session.copy()
-            segment_session["container"] = segment_session["container"] + "_segments"
-            segment_objects = await sd_lock_utility.os_client.get_container_objects(
-                segment_session, raw=True
+            segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem] = []
+
+            bucket_bytes = bucket["bytes"]
+            if segment_bucket := list(
+                filter(lambda b: b["name"] == f"{bucket['name']}_segments", all_buckets)
+            ):
+                click.echo(
+                    f"Matching segments bucket found for {bucket['name']}, caching segment bucket contents"
+                )
+                bucket_bytes += segment_bucket[0]["bytes"]
+                segment_session = bucket_session.copy()
+                segment_session["container"] = segment_session["container"] + "_segments"
+                segment_objects = await sd_lock_utility.os_client.get_container_objects(
+                    segment_session, raw=True
+                )
+
+            migration.extend(
+                [
+                    {
+                        "name": bucket["name"],
+                        "convertedName": convert_bucket_name(bucket["name"], "-conv"),
+                        "bytes": bucket_bytes,
+                        "bytesDone": 0,
+                        "totalObjects": len(bucket_objects),
+                        "totalObjectsDone": 0,
+                        "totalHeaders": len(bucket_objects),
+                        "totalHeadersDone": 0,
+                        "currentlyMigrating": False,
+                        "sharingMigrated": False,
+                        "headersMigrated": False,
+                        "currentlyMigratingFile": "",
+                        "conversionNeed": int(
+                            bucket["name"] != convert_bucket_name(bucket["name"], "-conv")
+                        ),
+                        "objects": [
+                            await parse_object(bucket_session, o, segment_objects)
+                            for o in bucket_objects
+                        ],
+                    }
+                ]
             )
 
-        migration.extend(
-            [
-                {
-                    "name": bucket["name"],
-                    "convertedName": convert_bucket_name(bucket["name"]),
-                    "bytes": bucket_bytes,
-                    "bytesDone": 0,
-                    "totalObjects": len(bucket_objects),
-                    "totalObjectsDone": 0,
-                    "totalHeaders": len(bucket_objects),
-                    "totalHeadersDone": 0,
-                    "currentlyMigrating": False,
-                    "sharingMigrated": False,
-                    "headersMigrated": False,
-                    "currentlyMigratingFile": "",
-                    "conversionNeed": int(
-                        bucket["name"] != convert_bucket_name(bucket["name"])
-                    ),
-                    "objects": [
-                        await parse_object(bucket_session, o, segment_objects)
-                        for o in bucket_objects
-                    ],
-                }
-            ]
-        )
+    sd_connect_s3_migrate_cli.state.save_migration_state(
+        data_dir,
+        lock_util_session["openstack_username"],
+        lock_util_session["token"],
+        {
+            "id": lock_util_session["openstack_project_id"],
+            "name": lock_util_session["openstack_project_name"],
+        },
+        migration,
+    )
 
     # Migrate the contents of the buckets
     for migration_bucket in migration:
-        click.echo(f"Migrating bucket {bucket['name']}")
+        if (
+            migration_bucket["totalObjects"] == migration_bucket["totalObjectsDone"]
+            and migration_bucket["sharingMigrated"]
+            and migration_bucket["headersMigrated"]
+        ):
+            click.echo(f"Skipping bucket {migration_bucket['name']} as already migrated.")
+            continue
+
+        click.echo(f"Migrating bucket {migration_bucket['name']}")
 
         migration_bucket["currentlyMigrating"] = True
 
@@ -631,29 +713,67 @@ async def initialize_conversion(
                 migration_bucket["objects"],
                 desc=f"Concatenating files to bucket {migration_bucket['convertedName']}",
             ):
+                if migration_object["contentDone"]:
+                    continue
+
                 migration_bucket["currentlyMigratingFile"] = migration_object["key"]
                 ## Migrate the object content
                 await wrap_object_copy(
                     session, tmp_opts, migration_object, s3_accessible, dry_run
                 )
                 migration_bucket["totalObjectsDone"] += 1
+
+                sd_connect_s3_migrate_cli.state.save_migration_state(
+                    data_dir,
+                    lock_util_session["openstack_username"],
+                    lock_util_session["token"],
+                    {
+                        "id": lock_util_session["openstack_project_id"],
+                        "name": lock_util_session["openstack_project_name"],
+                    },
+                    migration,
+                )
+
             migration_bucket["currentlyMigratingFile"] = ""
 
             # Migrate bucket headers
-            click.echo(f"Migrating headers for bucket {bucket['name']}")
-            click.echo(session.copy())
-            if not dry_run:
+            click.echo(f"Migrating headers for bucket {migration_bucket['name']}")
+            if not dry_run and not migration_bucket["headersMigrated"]:
                 await sd_lock_utility.migrate.bucket_copy_headers(
                     tmp_opts, session.copy()
                 )
                 migration_bucket["totalHeadersDone"] = len(migration_bucket["objects"])
                 migration_bucket["headersMigrated"] = True
+                for migration_object in migration_bucket["objects"]:
+                    migration_object["headerDone"] = True
+
+                sd_connect_s3_migrate_cli.state.save_migration_state(
+                    data_dir,
+                    lock_util_session["openstack_username"],
+                    lock_util_session["token"],
+                    {
+                        "id": lock_util_session["openstack_project_id"],
+                        "name": lock_util_session["openstack_project_name"],
+                    },
+                    migration,
+                )
 
             # Migrate bucket sharing
-            click.echo(f"Migrating sharing for bucket {bucket['name']}")
-            if not dry_run:
+            click.echo(f"Migrating sharing for bucket {migration_bucket['name']}")
+            if not dry_run and not migration_bucket["sharingMigrated"]:
                 await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session.copy())
                 migration_bucket["sharingMigrated"] = True
+
+                sd_connect_s3_migrate_cli.state.save_migration_state(
+                    data_dir,
+                    lock_util_session["openstack_username"],
+                    lock_util_session["token"],
+                    {
+                        "id": lock_util_session["openstack_project_id"],
+                        "name": lock_util_session["openstack_project_name"],
+                    },
+                    migration,
+                )
 
             migration_bucket["currentlyMigrating"] = False
 
@@ -664,8 +784,19 @@ async def initialize_conversion(
                 Key="migration-report-latest.json",
             )
 
-    click.echo("Migration finished, displaying the final migration state: ")
-    click.echo(migration)
+            sd_connect_s3_migrate_cli.state.save_migration_state(
+                data_dir,
+                lock_util_session["openstack_username"],
+                lock_util_session["token"],
+                {
+                    "id": lock_util_session["openstack_project_id"],
+                    "name": lock_util_session["openstack_project_name"],
+                },
+                migration,
+            )
+
+    click.echo("Migration finished, finishing the migration state.")
+    sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
 
     await lock_util_session["client"].close()
 
