@@ -499,6 +499,7 @@ async def initialize_conversion(
     sd_connect_api_token: str = os.environ.get("SD_CONNECT_API_TOKEN", "")
     if not sd_connect_api_token:
         sd_connect_api_token = click.prompt("Please enter the SD Connect API token")
+    lock_util_session["token"] = sd_connect_api_token.encode("utf-8")
 
     # Clear the unscoped token from the openstack session and reauth
     lock_util_session["openstack_token"] = ""  # nosec
