@@ -3,6 +3,7 @@
 import os
 import re
 import typing
+import json
 
 import aiohttp
 import click
@@ -81,8 +82,8 @@ def init_opts(
         "no_preserve_original": False,
         "no_check_certificate": False,
         "progress": False,
-        "debug": True,
-        "verbose": True,
+        "debug": False,
+        "verbose": False,
         "use_s3": True,
         "ec2_access_key": session["ec2_access_key"],
         "ec2_secret_key": session["ec2_secret_key"],
@@ -656,9 +657,16 @@ async def initialize_conversion(
 
             migration_bucket["currentlyMigrating"] = False
 
+            # Add the migration report to the bucket
+            await session["s3_client"].put_object(
+                Body=json.dumps(migration_bucket),
+                Bucket=migration_bucket["convertedName"],
+                Key="migration-report-latest.json",
+            )
+
     click.echo("Migration finished, displaying the final migration state: ")
     click.echo(migration)
 
-    lock_util_session["client"].close()
+    await lock_util_session["client"].close()
 
     return ret
