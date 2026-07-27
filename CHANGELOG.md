@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Updated non-urgent conversion status text
 - (users) Updated Conversion Complete step with before and after bucket data (#70)
 - (users) Updated text on Conversion in Process step (#72)
 - (users) Updated text on API key step (#67)
