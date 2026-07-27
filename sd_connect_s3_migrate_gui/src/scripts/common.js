@@ -75,7 +75,7 @@ export function getBucketStatus(statusNum) {
     return { type: "error", value: "Urgent" };
   }
   if (statusNum === 1) {
-    return { type: "warning", value: "By the end of 2026" };
+    return { type: "warning", value: "Convert later" };
   }
   return null;
 }
