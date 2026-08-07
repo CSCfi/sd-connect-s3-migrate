@@ -528,17 +528,18 @@ async def initialize_conversion(
             ]
 
         else:
+            message = ""
             while True:
                 project = sd_connect_s3_migrate_cli.select.select_projects(
-                    projects["projects"]
+                    projects["projects"], message
                 )
-
-                if len(project) > 1:
-                    click.echo(
-                        "Migrating multiple projects at once is not yet supported. "
-                        + "Please select your project again.",
-                        err=True,
-                    )
+                if project is None:
+                    click.echo("Migration cancelled.")
+                    return
+                elif len(project) > 1:
+                    message = "Please select only one project."
+                elif len(project) == 0:
+                    message = "Please select a project."
                 else:
                     break
 
@@ -572,19 +573,24 @@ async def initialize_conversion(
 
         click.echo(f"Got in total {len(all_buckets)} buckets from the listing.")
 
+        message = ""
         while True:
             buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-                sd_connect_s3_migrate_cli.select.select_buckets(all_buckets)
+                sd_connect_s3_migrate_cli.select.select_buckets(all_buckets, message)
             )
 
-            if len(buckets) < 1:
-                click.echo("You must select at least one bucket for migration.", err=True)
-            elif len(buckets) > 1:
-                click.echo(f"Selected {len(buckets)} for migration.")
-                break
+            if buckets is None:
+                click.echo("Migration cancelled.")
+                return
+            elif len(buckets) < 1:
+                message = "Please select at least one bucket for migration."
             else:
-                click.echo(f"Selected bucket \"{buckets[0]['name']}\" for migration.")
                 break
+
+        if len(buckets) > 1:
+            click.echo(f"Selected {len(buckets)} for migration.")
+        else:
+            click.echo(f"Selected bucket \"{buckets[0]['name']}\" for migration.")
 
     bucket_sessions: dict[str, sd_lock_utility.types.SDAPISession] = {}
 
