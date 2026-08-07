@@ -456,6 +456,7 @@ async def initialize_conversion(
     if continue_migration:
         lock_util_session["openstack_username"] = previous_state["username"]
     else:
+        click.echo("Starting a new migration.")
         lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
         if not lock_util_session["openstack_username"]:
             lock_util_session["openstack_username"] = click.prompt(
@@ -499,9 +500,17 @@ async def initialize_conversion(
     )
     click.echo(lock_util_session)
     if not lock_util_session["openstack_project_id"]:
-        projects: sd_lock_utility.types.OpenstackProjectList = (
-            await sd_lock_utility.os_client.openstack_get_projects(lock_util_session)
-        )
+        try:
+            projects: sd_lock_utility.types.OpenstackProjectList = (
+                await sd_lock_utility.os_client.openstack_get_projects(lock_util_session)
+            )
+        except sd_lock_utility.exceptions.Unauthorized:
+            click.echo("Incorrect Openstack password. Aborting.", err=True)
+            return
+        except Exception:
+            click.echo("Projects could not be retrieved. Aborting.", err=True)
+            return
+
 
         if continue_migration:
             # Check that the interrupted migration project is available
