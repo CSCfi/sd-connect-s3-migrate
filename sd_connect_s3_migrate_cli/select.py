@@ -55,7 +55,9 @@ def _selection_screen(
 
         # Display validation message
         if message:
-            stdscr.addnstr(1, 0, _truncate("Error: " + message, width - 1), width - 1, curses.A_BOLD)
+            stdscr.addnstr(
+                1, 0, _truncate("Error: " + message, width - 1), width - 1, curses.A_BOLD
+            )
 
         starting_row = 2
         visible_rows = max(starting_row, height - 2)
