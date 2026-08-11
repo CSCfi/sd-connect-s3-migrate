@@ -596,13 +596,14 @@ async def initialize_conversion(
         all_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
             await sd_lock_utility.os_client.get_containers(lock_util_session)
         )
+        filtered_buckets = [b for b in all_buckets if not b["name"].endswith("_segments")]
 
-        click.echo(f"Got in total {len(all_buckets)} buckets from the listing.")
+        click.echo(f"Got in total {len(filtered_buckets)} buckets from the listing.")
 
         message = ""
         while True:
             buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-                sd_connect_s3_migrate_cli.select.select_buckets(all_buckets, message)
+                sd_connect_s3_migrate_cli.select.select_buckets(filtered_buckets, message)
             )
 
             if buckets is None:
