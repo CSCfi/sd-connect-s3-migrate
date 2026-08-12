@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.0] - 2026-08-12
+
 ### Changed
 
 - Updated non-urgent conversion status text
@@ -19,6 +21,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- (users) new CLI implementation in Python that more closely matches the functionality of the UI
+- rewrite the CLI in Python to support resumable migration and migration report generation
 - Added original object and bucket deletion (#5)
 - (users) log file containing useful debug information at `~/Documents/SD-Connect-S3-Migrate/migration-logfile.log`
 - logging of browser console to file via `electron-log`
@@ -160,7 +164,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.19...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.0...HEAD
+[2026.8.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.19...2026.8.0
 [2026.4.19]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.18...2026.4.19
 [2026.4.18]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.17...2026.4.18
 [2026.4.17]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.4.16...2026.4.17
