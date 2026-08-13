@@ -395,6 +395,7 @@ async def wrap_object_copy(
         # Remember to wipe the object specific progress bar, as we don't need it
         t.close()
 
+
 def handle_invalid_token(
     data_dir: str,
     session: sd_lock_utility.types.SDAPISession,
@@ -412,6 +413,7 @@ def handle_invalid_token(
         },
         migration,
     )
+
 
 async def initialize_conversion(
     username: str, keystone_host: str, data_dir: str, dry_run: bool
@@ -523,11 +525,10 @@ async def initialize_conversion(
             )
         except sd_lock_utility.exceptions.Unauthorized:
             click.echo("Incorrect Openstack password. Aborting.", err=True)
-            return
+            return 1
         except Exception:
             click.echo("Projects could not be retrieved. Aborting.", err=True)
-            return
-
+            return 4
 
         if continue_migration:
             # Check that the interrupted migration project is available
@@ -561,7 +562,7 @@ async def initialize_conversion(
                 )
                 if project is None:
                     click.echo("Migration cancelled.")
-                    return
+                    return 1
                 elif len(project) > 1:
                     message = "Please select only one project."
                 elif len(project) == 0:
@@ -603,7 +604,7 @@ async def initialize_conversion(
         message = ""
         while True:
             buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-                sd_connect_s3_migrate_cli.select.select_buckets(filtered_buckets, message)
+                sd_connect_s3_migrate_cli.select.select_buckets(filtered_buckets, message)  # type: ignore
             )
 
             if buckets is None:
@@ -722,7 +723,7 @@ async def initialize_conversion(
             session["s3_client"] = s3
 
             # Migrate bucket objects
-            ## Check if the bucket can be accessed using S3
+            # Check if the bucket can be accessed using S3
             s3_accessible = True
             try:
                 await sd_lock_utility.s3_client.s3_check_container(
@@ -732,7 +733,7 @@ async def initialize_conversion(
                 s3_accessible = False
             except botocore.exceptions.ParamValidationError:
                 s3_accessible = False
-            ## Create the destination bucket if the bucket name changes
+            # Create the destination bucket if the bucket name changes
             if migration_bucket["name"] != migration_bucket["convertedName"]:
                 try:
                     # Currently need to temporarily override the session bucket to force s3 to verify the new one
@@ -741,9 +742,9 @@ async def initialize_conversion(
                     session["container"] = migration_bucket["name"]
                 except sd_lock_utility.exceptions.Unauthorized:
                     handle_invalid_token(data_dir, lock_util_session, migration)
-                    return
+                    return 1
 
-            ## Start the file migration
+            # Start the file migration
             for migration_object in tqdm.tqdm(
                 migration_bucket["objects"],
                 desc=f"Concatenating files to bucket {migration_bucket['convertedName']}",
@@ -752,7 +753,7 @@ async def initialize_conversion(
                     continue
 
                 migration_bucket["currentlyMigratingFile"] = migration_object["key"]
-                ## Migrate the object content
+                # Migrate the object content
                 await wrap_object_copy(
                     session, tmp_opts, migration_object, s3_accessible, dry_run
                 )
@@ -780,7 +781,7 @@ async def initialize_conversion(
                     )
                 except sd_lock_utility.exceptions.Unauthorized:
                     handle_invalid_token(data_dir, lock_util_session, migration)
-                    return
+                    return 1
                 except sd_lock_utility.exceptions.NoKey:
                     click.echo("Failed to retrieve project public key for header migration.", err=True)
 
@@ -807,7 +808,7 @@ async def initialize_conversion(
                     await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session.copy())
                 except sd_lock_utility.exceptions.Unauthorized:
                     handle_invalid_token(data_dir, lock_util_session, migration)
-                    return
+                    return 1
 
                 migration_bucket["sharingMigrated"] = True
 
