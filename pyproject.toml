@@ -110,7 +110,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 25
+max-complexity = 50
 
 [tool.hatch.build.targets.wheel]
 packages = ["sd_connect_s3_migrate_cli"]

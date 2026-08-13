@@ -1,42 +1,35 @@
 """Main migration script."""
 
+import datetime
+import json
 import os
 import re
 import typing
-import json
-import datetime
 
-import aiohttp
-import click
-import anyascii
-
-import tqdm
-
-import boto3
 import aioboto3
 import aiobotocore.response
-
-import botocore.exceptions
+import aiohttp
+import anyascii
+import boto3
 import botocore.config
-
-import sd_lock_utility.types
-import sd_lock_utility.exceptions
+import botocore.exceptions
+import click
 import sd_lock_utility.client
 import sd_lock_utility.common
+import sd_lock_utility.exceptions
 import sd_lock_utility.migrate
 import sd_lock_utility.os_client
 import sd_lock_utility.s3_client
+import sd_lock_utility.types
+import tqdm
 
 import sd_connect_s3_migrate_cli.select
-import sd_connect_s3_migrate_cli.types
 import sd_connect_s3_migrate_cli.state
+import sd_connect_s3_migrate_cli.types
 
 
 def convert_bucket_name(bucket: str, bucket_suffix: str = "") -> str:
-    """
-    Convert the bucket name to a compatible one with best effort.
-    """
-
+    """Convert bucket name to compatible one with best effort."""
     # 1. Transliterate Unicode -> ASCII
     slug = anyascii.anyascii(bucket)
 
@@ -170,7 +163,6 @@ async def copy_multipart_part_streaming(
     dry_run: bool = False,
 ):
     """Copy a multipart part by streaming it through the host connection."""
-
     # Try generating the object url with standard boto3
     boto3_session = boto3.Session(
         aws_access_key_id=session["ec2_access_key"],
@@ -401,6 +393,7 @@ def handle_invalid_token(
     session: sd_lock_utility.types.SDAPISession,
     migration: sd_connect_s3_migrate_cli.types.MigrationBucketList,
 ):
+    """Save the migration state when invalid API token encountered."""
     click.echo("Invalid SD API token. Aborting.", err=True)
     # Clear token
     sd_connect_s3_migrate_cli.state.save_migration_state(
@@ -783,7 +776,10 @@ async def initialize_conversion(
                     handle_invalid_token(data_dir, lock_util_session, migration)
                     return 1
                 except sd_lock_utility.exceptions.NoKey:
-                    click.echo("Failed to retrieve project public key for header migration.", err=True)
+                    click.echo(
+                        "Failed to retrieve project public key for header migration.",
+                        err=True,
+                    )
 
                 migration_bucket["totalHeadersDone"] = len(migration_bucket["objects"])
                 migration_bucket["headersMigrated"] = True
@@ -805,7 +801,9 @@ async def initialize_conversion(
             click.echo(f"Migrating sharing for bucket {migration_bucket['name']}")
             if not dry_run and not migration_bucket["sharingMigrated"]:
                 try:
-                    await sd_lock_utility.migrate.convert_bucket_acl(tmp_opts, session.copy())
+                    await sd_lock_utility.migrate.convert_bucket_acl(
+                        tmp_opts, session.copy()
+                    )
                 except sd_lock_utility.exceptions.Unauthorized:
                     handle_invalid_token(data_dir, lock_util_session, migration)
                     return 1
