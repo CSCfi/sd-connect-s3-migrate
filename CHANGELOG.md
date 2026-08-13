@@ -7,6 +7,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Filter out segments buckets from bucket selection (#90)
+
+### Added
+
+- Added error handling for CLI (#89)
+
 ## [2026.8.0] - 2026-08-12
 
 ### Changed
