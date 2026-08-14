@@ -26,7 +26,6 @@ jobs:
           body: |
             Release ${{ steps.vars.outputs.tag }} of Swift to S3 Migration Tool for SD Connect.
 
-
   build-electron:
     name: "Create electron release assets"
     needs: "create-release"
@@ -74,7 +73,7 @@ jobs:
             libarchive-tools \
             build-essential \
             snapd
-      
+
       - name: Install snapcraft 7 for core18 (Linux)
         if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
         run : |
@@ -176,4 +175,111 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: sd_connect_s3_migrate_bash/*.AppImage
+          fail_on_unmatched_files: true
+
+  build-cli:
+    name: Create CLI release asset
+    needs: create_release
+    strategy:
+      max-parallel: 4
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14, windows-2022, windows-11-arm]
+        include:
+          - os: ubuntu-22.04
+            artifact_name: sd-connect-s3-migrate-cli
+            os_suffix: linux-amd64
+            asset_name: sd-connect-s3-migrate-cli
+          - os: ubuntu-22.04-arm
+            artifact_name: sd-connect-s3-migrate-cli
+            os_suffix: linux-arm64
+            asset_name: sd-connect-s3-migrate-cli
+          - os: windows-2022
+            artifact_name: sd-connect-s3-migrate-cli.exe
+            os_suffix: windows-amd64
+            asset_name: sd-connect-s3-migrate-cli
+          - os: macos-14
+            artifact_name: sd-connect-s3-migrate-cli
+            os_suffix: macos-arm64
+            asset_name: sd-connect-s3-migrate-cli
+          - os: windows-11-arm
+            artifact_name: sd-connect-s3-migrate-cli.exe
+            os_suffix: windows-arm64
+            asset_name: sd-connect-s3-migrate-cli
+        python-version: ["3.12"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
+        run: sudo apt-get install python3-dev -y
+      - name: Install Windows dependencies
+        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        run: |
+          choco install zip
+      - name: Install macOS dependencies
+        if: matrix.os == 'macos-14'
+        run: |
+          brew install coreutils
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pip install pyinstaller-versionfile
+      - name: Build sd-connect-s3-migrate-cli artifact for nix
+        if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm' || matrix.os == 'macos-14'
+        run: |
+          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --hidden-import=_cffi_backend
+      - name: Build sd-connect-s3-migrate-cli artifact for Windows
+        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        run: |
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG/.0*./.${TAG:6:1}.} # remove leading zero for windows version
+          create-version-file versionfile.yml --outfile file_version_info.txt --version $VERSION
+          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --version-file file_version_info.txt --hidden-import=_cffi_backend
+      - name: Build asset
+        run: |
+          cd ./dist
+          zip --junk-paths ${{ matrix.asset_name }}-python${{ matrix.python-version }}-${{ matrix.os_suffix }}.zip ${{ matrix.artifact_name }}
+      - name: Upload release asset
+        id: upload-release-asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ./dist/${{ matrix.asset_name }}-python${{ matrix.python-version }}-${{ matrix.os_suffix }}.zip
+          fail_on_unmatched_files: true
+
+  build_legacy_cli:
+    name: Build legacy executable for CLI
+    needs: create_release
+    runs-on: ubuntu-latest
+
+    env:
+      ASSET_NAME: sd-connect-s3-migrate-cli-legacy
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build the legacy executable
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace almalinux:8 bash .github/build/build_legacy_cli.sh $ASSET_NAME
+          cd ./dist
+          sudo zip --junk-paths ${ASSET_NAME}-python3.12-legacy.zip $ASSET_NAME
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./dist/${{ env.ASSET_NAME }}-python3.12-legacy.zip
           fail_on_unmatched_files: true
