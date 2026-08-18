@@ -30,10 +30,10 @@ More detailed instructions for the GUI can be found in its respective
 
 Additionally, there are two additional tools provided for CLI users:
 
-* bash based script for a quick migration of the urgently migrated buckets (in review)
-    * [Script README](/sd_connect_s3_migrate_bash/README.md)
-* python based more comprehensive script for longer running operations (TODO)
+* Python based CLI for efficient migration of large projects (recommended)
     * [Python CLI README](/sd_connect_s3_migrate_cli/README.md)
+* bash based script for a quick migration of the urgently migrated buckets (no longer recommended)
+    * [Script README](/sd_connect_s3_migrate_bash/README.md)
 
 ### Dependencies
 

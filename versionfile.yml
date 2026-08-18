@@ -1,0 +1,9 @@
+CompanyName: CSC-Tieteen tietotekniikan keskus Oy
+FileDescription: Migration tool for SD Connect Swift to S3 API conversion
+InternalName: sd-connect-s3-migrate-cli
+LegalCopyright: © CSC-Tieteen tietotekniikan keskus Oy
+OriginalFilename: sd-connect-s3-migrate-cli.exe
+ProductName: sd-connect-s3-migrate-cli
+Translation:
+  - langID: 1033
+    charsetID: 1200
