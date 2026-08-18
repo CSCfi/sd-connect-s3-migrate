@@ -11,6 +11,6 @@ CSC user guide for more thorough usage instructions.
 """
 
 __name__ = "sd_connect_s3_migrate_cli"
-__version__ = "2026.8.2"
+__version__ = "2026.8.3"
 __author__ = "CSC Developers"
 __license__ = "MIT License"

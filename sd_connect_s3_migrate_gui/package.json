@@ -1,7 +1,7 @@
 {
   "name": "sd_connect_s3_migrate_gui",
   "productName": "sd_connect_s3_migrate_gui",
-  "version": "2026.8.2",
+  "version": "2026.8.3",
   "description": "SD Connect S3 Migration Utility",
   "main": ".vite/build/main.js",
   "scripts": {
