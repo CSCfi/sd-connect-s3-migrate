@@ -179,7 +179,7 @@ jobs:
 
   build-cli:
     name: Create CLI release asset
-    needs: create_release
+    needs: create-release
     strategy:
       max-parallel: 4
       matrix:
@@ -259,7 +259,7 @@ jobs:
 
   build_legacy_cli:
     name: Build legacy executable for CLI
-    needs: create_release
+    needs: create-release
     runs-on: ubuntu-latest
 
     env:
