@@ -69,7 +69,7 @@ Options:
   --help                Show this message and exit.
 ```
 
-The default data directory is `$HOME/$DOCUMENTS/SD-Connect-S3-Migrate', same as with
+The default data directory is `$HOME/$DOCUMENTS/SD-Connect-S3-Migrate`, same as with
 the migration GUI.
 
 Additionally the tool supports retrieving configuration from environment variables, in case
@@ -88,7 +88,7 @@ OS_USER_DOMAIN_NAME – (not needed in normal operation) domain for the openstac
 ```
 
 #### binary installation
-use the executable name (e.g. `sd-connect-s3-migrate-cli-2026.8.1`) to invoke the command
+Use the executable name (e.g. `sd-connect-s3-migrate-cli-2026.8.1`) to invoke the command
 (provided the executable is in a location specified in your `$PATH`). Alternatively,
 run your shell in the folder where the executable is so you have the command available.
 
