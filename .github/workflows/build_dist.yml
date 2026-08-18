@@ -233,6 +233,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           pip install pyinstaller-versionfile
+      - name: Install windows-curses
+        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        run: |
+          pip install windows-curses
       - name: Build sd-connect-s3-migrate-cli artifact for nix
         if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm' || matrix.os == 'macos-14'
         run: |
@@ -244,7 +248,7 @@ jobs:
           TAG=${{ github.ref_name }}
           VERSION=${TAG/.0*./.${TAG:6:1}.} # remove leading zero for windows version
           create-version-file versionfile.yml --outfile file_version_info.txt --version $VERSION
-          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --version-file file_version_info.txt --hidden-import=_cffi_backend
+          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --version-file file_version_info.txt --hidden-import=_cffi_backend --hidden-import=curses
       - name: Build asset
         run: |
           cd ./dist
