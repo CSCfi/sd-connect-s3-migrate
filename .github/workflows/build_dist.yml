@@ -239,6 +239,7 @@ jobs:
           pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --hidden-import=_cffi_backend
       - name: Build sd-connect-s3-migrate-cli artifact for Windows
         if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        shell: bash
         run: |
           TAG=${{ github.ref_name }}
           VERSION=${TAG/.0*./.${TAG:6:1}.} # remove leading zero for windows version
