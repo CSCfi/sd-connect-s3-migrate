@@ -183,7 +183,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14, windows-2022, windows-11-arm]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14, windows-2022]
         include:
           - os: ubuntu-22.04
             artifact_name: sd-connect-s3-migrate-cli
@@ -230,7 +230,7 @@ jobs:
           pip install pyinstaller
           pip install pyinstaller-versionfile
       - name: Install windows-curses
-        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        if: matrix.os == 'windows-2022'
         run: |
           pip install windows-curses
       - name: Build sd-connect-s3-migrate-cli artifact for nix
