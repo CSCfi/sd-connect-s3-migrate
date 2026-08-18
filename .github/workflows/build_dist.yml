@@ -236,7 +236,7 @@ jobs:
       - name: Build sd-connect-s3-migrate-cli artifact for nix
         if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm' || matrix.os == 'macos-14'
         run: |
-          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --hidden-import=_cffi_backend
+          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --hidden-import=_cffi_backend --collect-all sd_connect_s3_migrate_cli --collect-all aioboto3 --collect-all aiobotocore --collect-submodules boto3 --collect-submodules botocore
       - name: Build sd-connect-s3-migrate-cli artifact for Windows
         if: matrix.os == 'windows-2022'
         shell: bash
@@ -244,7 +244,7 @@ jobs:
           TAG=${{ github.ref_name }}
           VERSION=${TAG/.0*./.${TAG:6:1}.} # remove leading zero for windows version
           create-version-file versionfile.yml --outfile file_version_info.txt --version $VERSION
-          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --version-file file_version_info.txt --hidden-import=_cffi_backend --hidden-import=curses
+          pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --version-file file_version_info.txt --hidden-import=_cffi_backend --hidden-import=curses --collect-all sd_connect_s3_migrate_cli --collect-all aioboto3 --collect-all aiobotocore --collect-submodules boto3 --collect-submodules botocore
       - name: Build asset
         run: |
           cd ./dist
