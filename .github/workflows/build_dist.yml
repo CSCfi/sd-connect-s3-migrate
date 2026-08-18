@@ -201,10 +201,6 @@ jobs:
             artifact_name: sd-connect-s3-migrate-cli
             os_suffix: macos-arm64
             asset_name: sd-connect-s3-migrate-cli
-          - os: windows-11-arm
-            artifact_name: sd-connect-s3-migrate-cli.exe
-            os_suffix: windows-arm64
-            asset_name: sd-connect-s3-migrate-cli
         python-version: ["3.12"]
 
     runs-on: ${{ matrix.os }}
@@ -220,7 +216,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
         run: sudo apt-get install python3-dev -y
       - name: Install Windows dependencies
-        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        if: matrix.os == 'windows-2022'
         run: |
           choco install zip
       - name: Install macOS dependencies
@@ -242,7 +238,7 @@ jobs:
         run: |
           pyinstaller --onefile sd_connect_s3_migrate_cli/cli.py --name ${{ matrix.asset_name }} --hidden-import=_cffi_backend
       - name: Build sd-connect-s3-migrate-cli artifact for Windows
-        if: matrix.os == 'windows-2022' || matrix.os == 'windows-11-arm'
+        if: matrix.os == 'windows-2022'
         shell: bash
         run: |
           TAG=${{ github.ref_name }}
