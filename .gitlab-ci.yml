@@ -26,7 +26,7 @@ lint-format-gui:
   tags:
     - docker-exec
   # Using image which has node stuff preinstalled
-  image: $ARTIFACTORY_SERVER/sds/sdd-golang-common-ci
+  image: $ARTIFACTORY_SERVER/sds/sdd-common-ci:2026.8.0
   rules:
   - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
     changes:
