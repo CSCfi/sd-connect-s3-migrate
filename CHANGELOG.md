@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Undo non-urgent conversion status text change
+
 ## [2026.8.6] - 2026-08-18
 
 ### Fixed
