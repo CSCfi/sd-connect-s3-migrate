@@ -474,6 +474,9 @@ async def initialize_conversion(
             lock_util_session["openstack_username"] = click.prompt(
                 "Please enter your Openstack username", default=""
             )
+            if not lock_util_session["openstack_username"]:
+                click.echo("No username was provided. Aborting.", err=True)
+                return 1
 
     lock_util_session["openstack_password"] = os.environ.get("OS_PASSWORD", "")
     lock_util_session["openstack_token"] = os.environ.get("OS_AUTH_TOKEN", "")
