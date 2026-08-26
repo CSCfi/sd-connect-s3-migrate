@@ -5,30 +5,16 @@
       {{ project?.name }}
     </p>
     <h1>Data conversion is complete</h1>
-    <c-alert type="error" v-if="alert === 'match'">
+    <c-alert type="error" v-if="showAlert">
       <c-row gap="100" justify="space-between" align="center">
         <div class="alert-text">
-          Your buckets have been copied and converted to be compatible with the current SD Connect version. Please take
-          a moment to review the sizes and items to make sure they match before and after the conversion.
-          <ul>
-            <li>
-              If everything matches, click
-              <b>Match.</b>
-            </li>
-            <li>If you notice any differences, contact servicedesk@csc.fi with the subject "Sensitive data".</li>
-          </ul>
+          <p>
+            Your buckets have been converted to a compatible format. Ensure that the bucket size and item count match
+            before and after conversion from the data table below. If you have questions, please contact
+            servicedesk@csc.fi.
+          </p>
+          <p><b>If the conversion was successful, finalize it by clicking Delete.</b></p>
         </div>
-        <div class="actions">
-          <c-button href="mailto:servicedesk@csc.fi?subject=Sensitive%20data" :target="null" outlined>
-            Contact Service Desk
-          </c-button>
-          <c-button @click="alert = 'delete'">Match</c-button>
-        </div>
-      </c-row>
-    </c-alert>
-    <c-alert type="error" v-if="alert === 'delete'">
-      <c-row gap="100" justify="space-between" align="center">
-        <p class="alert-text">Would you like to delete the original incompatible buckets now?</p>
         <div class="actions">
           <c-button outlined @click="dismissAlert">Keep</c-button>
           <c-button @click="onDelete" :loading="deleting">Delete</c-button>
@@ -44,8 +30,13 @@
         {{ errorBuckets.length ? `in bucket${errorBuckets.length > 1 ? "s" : ""} ${errorBuckets.join(", ")}` : "" }}.
       </c-alert>
     </div>
+    <p v-if="showAlert">
+      In this final step, if a converted bucket has the -conv suffix, the original incompatible bucket will be
+      permanently deleted, freeing up storage space. For other buckets, only some technical segments will be removed;
+      the original bucket and data will remain intact.
+    </p>
     <c-data-table hide-footer :headers="headers" :data="tableData"></c-data-table>
-    <c-row v-if="alert === ''" gap="16" justify="end">
+    <c-row v-if="!showAlert" gap="16" justify="end">
       <c-button @click="quit" outlined>Close application</c-button>
       <c-button @click="startConversion">Start new conversion</c-button>
     </c-row>
@@ -66,7 +57,7 @@ const { project, migratedBuckets, scopedToken, s3client } = defineProps([
 ]);
 const emit = defineEmits(["start-new-conversion"]);
 
-const alert = ref("match");
+const showAlert = ref(true);
 const deleteSuccess = ref();
 const deleting = ref(false);
 const errorBuckets = ref([]);
@@ -83,11 +74,11 @@ async function onDelete() {
     console.error(e);
   }
   deleting.value = false;
-  alert.value = "";
+  showAlert.value = false;
 }
 function dismissAlert() {
   if (deleting.value) return;
-  alert.value = "";
+  showAlert.value = false;
 }
 function quit() {
   window.close();
@@ -342,5 +333,8 @@ const tableData = computed(() => {
 }
 .actions > * {
   margin-right: 1rem;
+}
+.alert-text p:first-child {
+  margin-top: 0;
 }
 </style>
