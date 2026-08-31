@@ -411,7 +411,7 @@ def handle_invalid_token(
 async def initialize_conversion_client_wrapper(
     username: str, keystone_host: str, data_dir: str, dry_run: bool
 ) -> int:
-    """Wrapper for proper closing of aiohttp client."""
+    """Add wrapper for proper closing of aiohttp client."""
     # Borrowing the relevant code and functionality from sd-lock-util
     # Initialize the session as empty, we'll populate it in a different order
     # than normal in sd-lock-util

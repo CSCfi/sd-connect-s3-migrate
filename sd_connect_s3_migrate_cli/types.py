@@ -1,7 +1,11 @@
+"""Types for migrate cli."""
+
 import typing
 
 
 class MigrationObjectPart(typing.TypedDict):
+    """S3 multipart part of a migration object."""
+
     key: str
     bytes: int
     originalKey: str
@@ -10,6 +14,8 @@ class MigrationObjectPart(typing.TypedDict):
 
 
 class MigrationObject(typing.TypedDict):
+    """Migration object information."""
+
     key: str
     bytes: int
     headerDone: bool
@@ -22,6 +28,8 @@ class MigrationObject(typing.TypedDict):
 
 
 class MigrationEntry(typing.TypedDict):
+    """Migration information."""
+
     name: str
     convertedName: str
     bytes: int
@@ -42,11 +50,15 @@ MigrationBucketList = list[MigrationEntry]
 
 
 class OpenstackProject(typing.TypedDict):
+    """Openstack project information."""
+
     id: str
     name: str
 
 
 class MigrationState(typing.TypedDict):
+    """Current state of migration."""
+
     buckets: MigrationBucketList
     timestamp: int
     username: str
@@ -55,6 +67,8 @@ class MigrationState(typing.TypedDict):
 
 
 class OpenstackBucket(typing.TypedDict):
+    """Openstack bucket information."""
+
     count: int
     bytes: int
     name: str
