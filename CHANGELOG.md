@@ -9,6 +9,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Updated new version date
+- Updated GUI bucket deletion prompt (#98)
 - Undo non-urgent conversion status text change
 
 ## [2026.8.6] - 2026-08-18
