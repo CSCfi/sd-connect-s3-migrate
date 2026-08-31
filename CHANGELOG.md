@@ -13,6 +13,15 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Updated GUI bucket deletion prompt (#98)
 - Undo non-urgent conversion status text change
 
+### Added
+
+- missing docstrings
+
+### Fixed
+
+- (users) unclosed client causing unnecessary output in terminal
+- bumped pre-commit black version
+
 ## [2026.8.6] - 2026-08-18
 
 ### Fixed
