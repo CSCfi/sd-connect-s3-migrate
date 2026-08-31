@@ -4,7 +4,6 @@ import curses
 
 import sd_connect_s3_migrate_cli.types
 
-
 bucket_type = (
     list[sd_connect_s3_migrate_cli.types.OpenstackBucket]
     | list[sd_connect_s3_migrate_cli.types.OpenstackProject]
@@ -121,6 +120,7 @@ def select_buckets(
     buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket],
     message: str,
 ) -> list[sd_connect_s3_migrate_cli.types.OpenstackBucket] | None:
+    """Select buckets."""
     return curses.wrapper(_selection_screen, buckets, message)  # type: ignore
 
 
@@ -128,4 +128,5 @@ def select_projects(
     projects: list[sd_connect_s3_migrate_cli.types.OpenstackProject],
     message: str,
 ) -> list[sd_connect_s3_migrate_cli.types.OpenstackProject] | None:
+    """Select projects."""
     return curses.wrapper(_selection_screen, projects, message)  # type: ignore

@@ -1,13 +1,13 @@
 """Functions required for handling the migration state save and load."""
 
+import datetime
 import json
 import os
-import datetime
 import time
+
 import click
 
 import sd_connect_s3_migrate_cli.types
-
 
 CURRENT_STATE_NAME: str = "migration-state.json"
 

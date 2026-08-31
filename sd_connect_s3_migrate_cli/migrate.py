@@ -408,12 +408,10 @@ def handle_invalid_token(
     )
 
 
-async def initialize_conversion(
+async def initialize_conversion_client_wrapper(
     username: str, keystone_host: str, data_dir: str, dry_run: bool
 ) -> int:
-    """Initialize the required parameters for a conversion process."""
-    ret = 0
-
+    """Add wrapper for proper closing of aiohttp client."""
     # Borrowing the relevant code and functionality from sd-lock-util
     # Initialize the session as empty, we'll populate it in a different order
     # than normal in sd-lock-util
@@ -435,11 +433,27 @@ async def initialize_conversion(
         )
     )
     # Add the client
-    lock_util_session["client"] = aiohttp.ClientSession(
+    async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
         ),
-    )
+    ) as client:
+        lock_util_session["client"] = client
+        return await initialize_conversion(
+            lock_util_session, username, keystone_host, data_dir, dry_run
+        )
+
+
+async def initialize_conversion(
+    lock_util_session: sd_lock_utility.types.SDAPISession,
+    username: str,
+    keystone_host: str,
+    data_dir: str,
+    dry_run: bool,
+) -> int:
+    """Initialize the required parameters for a conversion process."""
+    ret = 0
+
     # Clear the auth url
     lock_util_session["openstack_auth_url"] = ""
 
@@ -846,7 +860,5 @@ async def initialize_conversion(
 
     click.echo("Migration finished, finishing the migration state.")
     sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
-
-    await lock_util_session["client"].close()
 
     return ret
