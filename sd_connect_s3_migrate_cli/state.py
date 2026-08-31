@@ -8,7 +8,6 @@ import click
 
 import sd_connect_s3_migrate_cli.types
 
-
 CURRENT_STATE_NAME: str = "migration-state.json"
 
 

@@ -4,7 +4,6 @@ import curses
 
 import sd_connect_s3_migrate_cli.types
 
-
 bucket_type = (
     list[sd_connect_s3_migrate_cli.types.OpenstackBucket]
     | list[sd_connect_s3_migrate_cli.types.OpenstackProject]

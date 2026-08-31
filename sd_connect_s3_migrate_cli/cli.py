@@ -35,7 +35,7 @@ def convert(
     """Convert project resources into an S3 compatible form."""
     try:
         ret = asyncio.run(
-            sd_connect_s3_migrate_cli.migrate.initialize_conversion(
+            sd_connect_s3_migrate_cli.migrate.initialize_conversion_client_wrapper(
                 username,
                 keystone_host,
                 data_dir,
