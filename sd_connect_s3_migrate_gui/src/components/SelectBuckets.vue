@@ -46,23 +46,6 @@
         </c-link>
       </c-alert>
     </div>
-    <div class="alert-wrapper">
-      <c-alert v-if="selected.length" type="warning">
-        <span>
-          <b>Quota needed to complete conversion:</b>
-          {{ getReadableSize(quotaNeeded) }}
-        </span>
-        Please check that your project has enough storage quota to proceed with the conversion from my.csc.fi.
-        <c-link
-          underline
-          href="https://docs.csc.fi/data/sensitive-data/sd-connect-conversion-tool-ui/#34-select-buckets-to-convert"
-          target="_blank"
-        >
-          See detailed instructions
-          <c-icon :path="mdiOpenInNew" />
-        </c-link>
-      </c-alert>
-    </div>
     <c-row justify="space-between">
       <c-button outlined @click="emitBack" @keyup.enter="emitBack">Back</c-button>
       <c-button @click="selectBuckets" @keyup.enter="selectBuckets">Start conversion</c-button>
@@ -74,7 +57,7 @@
 <script setup>
 import { computed, watch, ref } from "vue";
 import { mdiOpenInNew, mdiPail } from "@mdi/js";
-import { estimatedBytesPerSec, getBucketStatus, getReadableSize, getTimeEstimate } from "../scripts/common";
+import { estimatedBytesPerSec, getBucketStatus, getTimeEstimate } from "../scripts/common";
 import { getBuckets } from "../scripts/openstack";
 import { ListBucketsCommand } from "@aws-sdk/client-s3";
 import { NEW_VERSION_DATE } from "../scripts/config";
