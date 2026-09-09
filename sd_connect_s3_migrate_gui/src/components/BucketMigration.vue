@@ -80,6 +80,7 @@ import { mdiOpenInNew } from "@mdi/js";
 import MigrationBucketTable from "./MigrationBucketTable.vue";
 import {
   addProjectKeyToWhitelist,
+  addShareToDB,
   checkProjectIDs,
   getFileHeader,
   checkSharingWhitelist,
@@ -715,7 +716,7 @@ async function migrateBucketSharing(bucket) {
   const ACLs = await getBucketACLs(scopedToken, bucket.name);
 
   /*
-    Case 1. No existing policy (e.g. incompatible buckets)
+    Case 1. No existing policy (e.g. incompatible buckets or not shared with s3)
     Create a bucket policy from ACLs or create an empty bucket policy
   */
   if (!currentPolicy) {
@@ -746,6 +747,7 @@ async function migrateBucketSharing(bucket) {
       currentStatements.forEach((statement) => {
         const principal = statement?.Principal?.AWS;
         const receiver = principal.match(/::([0-9a-fA-F]+):root$/)[1];
+        // mark for vault side sharing migration
         receivers.add(receiver);
         const newStatement = {
           ...statement,
@@ -811,6 +813,18 @@ async function migrateBucketSharing(bucket) {
       console.log(`No sharing whitelist to migrate for bucket ${bucket.name}`);
     }
   }
+
+  // 4. Retrieve policies and update sharing DB
+  // Not based off ACLs:
+  // corner cases like user sharing bucket in v3 before migration changes bucket name
+  // Don't exit on error since shares are synced in SD Connect UI anyway
+  try {
+    await updateSharingDB(sdApiToken, project, bucket.convertedName);
+  } catch (e) {
+    console.warn(`Error retrieving updating sharing DB for bucket ${bucket.convertedName}`);
+    console.warn(e);
+  }
+
   // Mark sharing as migrated
   bucket.sharingMigrated = true;
 
@@ -1042,6 +1056,55 @@ function checkError(error) {
   if (error?.status === 401 || error?.cause?.status === 401) {
     emit("error", interruptReasons.apiKeyError);
     throw new Error("Migration interrupted due to expired or invalid API key.");
+  }
+}
+
+/**
+ * Get bucket policies and vault sharing whitelist to update sharing DB
+ * Only new entries added, share entry editing done by the sharing sync
+ * @param {string} apiToken - SD Connect API token
+ * @param {Object} project - project associated with the bucket
+ * @param {string} project.id - keystone/share ID of project
+ * @param {string} project.name - project name
+ * @param {string} bucket - name of S3 bucket
+ */
+async function updateSharingDB(apiToken, project, bucket) {
+  let statements;
+  const command = new GetBucketPolicyCommand({ Bucket: bucket });
+  const response = await s3client.send(command);
+  if (response?.Policy) {
+    const policy = JSON.parse(response.Policy);
+    statements =
+      policy?.Statement?.filter((statement) => statement?.Sid === "GrantSDConnectSharedAccessToProject") || [];
+  }
+
+  if (!statements.length) return;
+
+  // Analyze statements and retrieve sharing whitelist
+  for (const statement of statements) {
+    try {
+      const principal = statement.Principal.AWS;
+      const receiver = principal.match(/::([0-9a-fA-F]+):root$/)[1];
+      const bucketPolicy = {
+        read: statement.Action.includes("s3:GetObject"),
+        write: statement.Action.includes("s3:PutObject"),
+      };
+      let whitelisted;
+
+      // Check vault sharing
+      const ids = await checkProjectIDs(receiver);
+      if (ids?.id === undefined || ids?.name === undefined) {
+        console.warn(`No project id cache for project ${receiver}, skipping`);
+        continue;
+      }
+      const whitelist = await checkSharingWhitelist(apiToken, project.name, bucket, ids.name);
+      whitelisted = whitelist?.data?.id === ids.name && whitelist?.data?.idkeystone === ids.id;
+      await addShareToDB(apiToken, project.id, bucket, receiver, bucketPolicy, whitelisted);
+    } catch (e) {
+      console.warn("Error processing bucket policy statement to add to share DB:");
+      console.warn(e);
+      continue;
+    }
   }
 }
 

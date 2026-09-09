@@ -339,3 +339,55 @@ export async function putSharingWhitelist(apiKey, projectName, bucket, whitelist
     throw new Error("Failed to add bucket sharing whitelist.", { cause: e });
   }
 }
+
+/**
+ * Add shares to sharing DB.
+ * Due to sharing sync on SD Connect UI side, operation not critical, errors only logged
+ * @param {string} apiKey - SD Connect API token
+ * @param {string} projectId - keystone/share ID of project
+ * @param {string} bucket - name of bucket
+ * @param {string} receiver - keystone/share ID of share receiving project
+ * @param {Object} bucketPolicy - {read: bool, write: bool}
+ * @param {boolean} whitelisted
+ */
+export async function addShareToDB(apiKey, projectId, bucket, receiver, bucketPolicy, whitelisted) {
+  const write = bucketPolicy.read && bucketPolicy.write;
+  const read = bucketPolicy.read && !bucketPolicy.write;
+  let accessStr;
+
+  if (read && !whitelisted) {
+    accessStr = "v";
+  } else if (read && whitelisted) {
+    accessStr = "r";
+  } else if (write && whitelisted) {
+    accessStr = "r,w";
+  } else {
+    console.warn(`Incongruous bucket policy and sharing whitelist on bucket ${bucket}:`);
+    console.warn(`Receiver ${receiver}, read: ${read}, write: ${write}, whitelisted: ${whitelisted}`);
+    return;
+  }
+
+  try {
+    const path = `/share/${projectId}/${bucket}`;
+    const signature = await sign_api_request(apiKey, path);
+
+    // Prepare the URL
+    let url = new URL(`${await getSDConnectAPIEndpoint()}/sharing${path}`);
+    url.searchParams.append("signature", signature.signature);
+    url.searchParams.append("valid", signature.valid);
+
+    url.searchParams.append("user", receiver);
+    url.searchParams.append("access", accessStr);
+    url.searchParams.append("address", "none");
+
+    const resp = await fetch(url, { method: "POST" });
+
+    if (!resp.ok) {
+      console.warn("Error posting a share entry to DB:");
+      console.warn(resp.status);
+    }
+  } catch (e) {
+    console.warn(`Error adding share DB entry on bucket ${bucket}:`);
+    console.warn(e);
+  }
+}
