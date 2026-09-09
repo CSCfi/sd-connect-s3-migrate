@@ -22,6 +22,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - (users) unclosed client causing unnecessary output in terminal
 - bumped pre-commit black version
 
+### Removed
+
+- Removes alert on needed quota for migration (#101)
+
 ## [2026.8.6] - 2026-08-18
 
 ### Fixed
