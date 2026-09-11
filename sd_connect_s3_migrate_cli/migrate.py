@@ -482,6 +482,8 @@ async def initialize_conversion(
     if continue_migration:
         lock_util_session["openstack_username"] = previous_state["username"]
     else:
+        if previous_state is not None:
+            sd_connect_s3_migrate_cli.state.cancel_migration(data_dir)
         click.echo("Starting a new migration.")
         lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
         if not lock_util_session["openstack_username"]:
