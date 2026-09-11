@@ -19,6 +19,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Clear previous migration state when migration not resumed on CLI (#102)
 - (users) unclosed client causing unnecessary output in terminal
 - bumped pre-commit black version
 
