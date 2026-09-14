@@ -15,6 +15,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Add new shares to SD Connect sharing DB based on converted bucket policy and sharing whitelist
 - missing docstrings
 
 ### Fixed
