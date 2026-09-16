@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.0] - 2026-09-16
+
 ### Changed
 
 - Updated new version date
@@ -20,6 +22,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Fixed migrated bucket bytesDone not incremented ()
 - Clear previous migration state when migration not resumed on CLI (#102)
 - (users) unclosed client causing unnecessary output in terminal
 - bumped pre-commit black version
@@ -227,7 +230,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.6...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.0...HEAD
+[2026.9.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.6...2026.9.0
 [2026.8.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.5...2026.8.6
 [2026.8.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.4...2026.8.5
 [2026.8.4]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.3...2026.8.4
