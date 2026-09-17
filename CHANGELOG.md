@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Sync shares with sharing API during sharing migration (#105)
+
 ## [2026.9.0] - 2026-09-16
 
 ### Changed
