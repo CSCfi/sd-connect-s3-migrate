@@ -5,6 +5,7 @@ import json
 import os
 import re
 import typing
+import uuid
 
 import aioboto3
 import aiobotocore.response
@@ -97,7 +98,7 @@ async def get_segmented_object_metadata(
 
 
 async def parse_object(
-    session: sd_lock_utility,
+    session: sd_lock_utility.types.SDAPISession,
     object: sd_lock_utility.types.OpenstackObjectListingItem,
     segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem],
 ) -> sd_connect_s3_migrate_cli.types.MigrationObject:
@@ -498,6 +499,159 @@ async def initialize_conversion_client_wrapper(
         )
 
 
+async def check_migration_report_name_match(
+    session: sd_lock_utility.types.SDAPISession,
+    source_bucket: str,
+    dest_bucket: str,
+) -> bool:
+    """Check if migration report matches given source bucket."""
+    try:
+        resp = await session["s3_client"].get_object(
+            Bucket=dest_bucket, Key="migration-report-latest.json"
+        )
+        body = await resp["Body"].read()
+        content = json.loads(body)
+        if content["name"] == source_bucket:
+            return True
+    except Exception:
+        return False
+
+    return False
+
+
+async def get_destination_bucket(
+    session: sd_lock_utility.types.SDAPISession,
+    opts: sd_lock_utility.types.SDHeaderMigrate,
+    project_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket],
+    source_bucket: str,
+) -> str:
+    """Determine s3-compatible destination bucket for migration."""
+    dest_bucket = ""
+    converted_name = convert_bucket_name(source_bucket, "-conv")
+
+    if converted_name != source_bucket:
+        # Check if desired destination bucket exists
+        try:
+            await sd_lock_utility.s3_client.s3_check_container(
+                session, opts, converted_name
+            )
+            # Bucket exists and accessible. Check for migration report
+            reuse_bucket = await check_migration_report_name_match(
+                session, source_bucket, converted_name
+            )
+            if reuse_bucket:
+                dest_bucket = converted_name
+            else:
+                # Check if other buckets fit the naming pattern
+                base_name = converted_name.removesuffix("-conv")
+                regex = re.compile(rf"^{base_name}-[0-9a-f]{{4}}-conv$")
+                matched_buckets = [b for b in project_buckets if regex.match(b["name"])]
+                # Check potential dest buckets for migration reports
+                for bucket in matched_buckets:
+                    found = await check_migration_report_name_match(
+                        session, source_bucket, bucket["name"]
+                    )
+                    if found:
+                        dest_bucket = bucket["name"]
+                        break
+                if not dest_bucket:
+                    # Existing bucket cannot be used
+                    raise sd_lock_utility.exceptions.NoContainerAccess
+        except sd_lock_utility.exceptions.ContainerNotFound:
+            # Bucket doesn't exist. Create
+            # Need to override the session bucket to force s3 to verify the new one
+            session["container"] = converted_name
+            await sd_lock_utility.s3_client.s3_create_container(session, opts)
+            dest_bucket = converted_name
+            session["container"] = source_bucket
+        except sd_lock_utility.exceptions.NoContainerAccess:
+            # Create bucket with randomised suffix
+            suffix = f"-{uuid.uuid4().hex[:4]}-conv"
+            randomised_name = convert_bucket_name(source_bucket, suffix)
+            session["container"] = randomised_name
+            await sd_lock_utility.s3_client.s3_create_container(session, opts)
+            dest_bucket = randomised_name
+            session["container"] = source_bucket
+    else:
+        dest_bucket = source_bucket
+
+    if not dest_bucket:
+        raise sd_lock_utility.exceptions.NoContainerAccess
+
+    click.echo(f"Will use {dest_bucket} as the destination bucket for {source_bucket}")
+
+    return dest_bucket
+
+
+async def prepare_migration_entry(
+    bucket_session: sd_lock_utility.types.SDAPISession,
+    project_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket],
+    bucket: sd_connect_s3_migrate_cli.types.OpenstackBucket,
+) -> sd_connect_s3_migrate_cli.types.MigrationEntry:
+    """Prepare a migration entry for saving migration state."""
+    # Use session copy not to inadvertently modify it (creating s3 bucket in get_destination_bucket)
+    session = bucket_session.copy()
+    # Fetch a list of the bucket objects
+    bucket_objects = await sd_lock_utility.os_client.get_container_objects(
+        session, raw=True
+    )
+    segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem] = []
+
+    bucket_bytes = bucket["bytes"]
+    if segment_bucket := list(
+        filter(lambda b: b["name"] == f"{bucket['name']}_segments", project_buckets)
+    ):
+        click.echo(
+            f"Matching segments bucket found for {bucket['name']}, caching segment bucket contents"
+        )
+        bucket_bytes += segment_bucket[0]["bytes"]
+        segment_session = session.copy()
+        segment_session["container"] = segment_session["container"] + "_segments"
+        segment_objects = await sd_lock_utility.os_client.get_container_objects(
+            segment_session, raw=True
+        )
+
+    migration_entry: sd_connect_s3_migrate_cli.types.MigrationEntry = {
+        "name": bucket["name"],
+        "convertedName": "",
+        "bytes": bucket_bytes,
+        "bytesDone": 0,
+        "totalObjects": len(bucket_objects),
+        "totalObjectsDone": 0,
+        "totalHeaders": len(bucket_objects),
+        "totalHeadersDone": 0,
+        "currentlyMigrating": False,
+        "sharingMigrated": False,
+        "headersMigrated": False,
+        "currentlyMigratingFile": "",
+        "conversionNeed": 0,
+        "objects": [
+            await parse_object(session, o, segment_objects) for o in bucket_objects
+        ],
+    }
+
+    # Get destination bucket name
+    tmp_opts = init_opts(session, migration_entry)
+    await sd_lock_utility.os_client.init_s3_credentials(session)
+
+    async with aioboto3.Session().client(
+        service_name="s3",
+        endpoint_url=session["s3_endpoint_url"],
+        aws_access_key_id=session["ec2_access_key"],
+        aws_secret_access_key=session["ec2_secret_key"],
+    ) as s3:
+        session["s3_client"] = s3
+
+        converted_name = await get_destination_bucket(
+            session, tmp_opts, project_buckets, bucket["name"]
+        )
+
+        migration_entry["convertedName"] = converted_name
+        migration_entry["conversionNeed"] = int(bucket["name"] != converted_name)
+
+        return migration_entry
+
+
 async def initialize_conversion(
     lock_util_session: sd_lock_utility.types.SDAPISession,
     username: str,
@@ -658,11 +812,10 @@ async def initialize_conversion(
         click.echo("Failed to retrieve the scoped Openstack token. Aborting...", err=True)
         return 2
 
+    all_buckets = await sd_lock_utility.os_client.get_containers(lock_util_session)
+
     # Select the buckets to migrate
     if not continue_migration:
-        all_buckets: list[sd_connect_s3_migrate_cli.types.OpenstackBucket] = (
-            await sd_lock_utility.os_client.get_containers(lock_util_session)
-        )
         filtered_buckets = [b for b in all_buckets if not b["name"].endswith("_segments")]
 
         click.echo(f"Got in total {len(filtered_buckets)} buckets from the listing.")
@@ -704,62 +857,30 @@ async def initialize_conversion(
             bucket_session["container"] = bucket["name"]
             bucket_sessions[bucket["name"]] = bucket_session
 
-            # Fetch a list of the bucket objects
-            bucket_objects = await sd_lock_utility.os_client.get_container_objects(
-                bucket_session, raw=True
-            )
-            segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem] = []
-
-            bucket_bytes = bucket["bytes"]
-            if segment_bucket := list(
-                filter(lambda b: b["name"] == f"{bucket['name']}_segments", all_buckets)
-            ):
-                click.echo(
-                    f"Matching segments bucket found for {bucket['name']}, caching segment bucket contents"
+            try:
+                migration_entry = await prepare_migration_entry(
+                    bucket_session, all_buckets, bucket
                 )
-                bucket_bytes += segment_bucket[0]["bytes"]
-                segment_session = bucket_session.copy()
-                segment_session["container"] = segment_session["container"] + "_segments"
-                segment_objects = await sd_lock_utility.os_client.get_container_objects(
-                    segment_session, raw=True
-                )
-
-            migration.extend(
-                [
+                migration.extend([migration_entry])
+                sd_connect_s3_migrate_cli.state.save_migration_state(
+                    data_dir,
+                    lock_util_session["openstack_username"],
+                    lock_util_session["token"],
                     {
-                        "name": bucket["name"],
-                        "convertedName": convert_bucket_name(bucket["name"], "-conv"),
-                        "bytes": bucket_bytes,
-                        "bytesDone": 0,
-                        "totalObjects": len(bucket_objects),
-                        "totalObjectsDone": 0,
-                        "totalHeaders": len(bucket_objects),
-                        "totalHeadersDone": 0,
-                        "currentlyMigrating": False,
-                        "sharingMigrated": False,
-                        "headersMigrated": False,
-                        "currentlyMigratingFile": "",
-                        "conversionNeed": int(
-                            bucket["name"] != convert_bucket_name(bucket["name"], "-conv")
-                        ),
-                        "objects": [
-                            await parse_object(bucket_session, o, segment_objects)
-                            for o in bucket_objects
-                        ],
-                    }
-                ]
-            )
-
-    sd_connect_s3_migrate_cli.state.save_migration_state(
-        data_dir,
-        lock_util_session["openstack_username"],
-        lock_util_session["token"],
-        {
-            "id": lock_util_session["openstack_project_id"],
-            "name": lock_util_session["openstack_project_name"],
-        },
-        migration,
-    )
+                        "id": lock_util_session["openstack_project_id"],
+                        "name": lock_util_session["openstack_project_name"],
+                    },
+                    migration,
+                )
+            except sd_lock_utility.exceptions.Unauthorized:
+                click.echo("Invalid SD API token. Aborting.", err=True)
+                return 1
+            except sd_lock_utility.exceptions.NoContainerAccess:
+                click.echo(
+                    f"Failed to determine destination bucket for {bucket["name"]}",
+                    err=True,
+                )
+                return 2
 
     # Migrate the contents of the buckets
     for migration_bucket in migration:
@@ -789,26 +910,18 @@ async def initialize_conversion(
             session["s3_client"] = s3
 
             # Migrate bucket objects
-            # Check if the bucket can be accessed using S3
+            # Check if source bucket is accessible with s3
             s3_accessible = True
-            try:
-                await sd_lock_utility.s3_client.s3_check_container(
-                    session, tmp_opts, migration_bucket["name"]
-                )
-            except sd_lock_utility.exceptions.S3IncompatibleBucketName:
-                s3_accessible = False
-            except botocore.exceptions.ParamValidationError:
-                s3_accessible = False
-            # Create the destination bucket if the bucket name changes
+
             if migration_bucket["name"] != migration_bucket["convertedName"]:
                 try:
-                    # Currently need to temporarily override the session bucket to force s3 to verify the new one
-                    session["container"] = migration_bucket["convertedName"]
-                    await sd_lock_utility.s3_client.s3_create_container(session, tmp_opts)
-                    session["container"] = migration_bucket["name"]
-                except sd_lock_utility.exceptions.Unauthorized:
-                    handle_invalid_token(data_dir, lock_util_session, migration)
-                    return 1
+                    await sd_lock_utility.s3_client.s3_check_container(
+                        session, tmp_opts, migration_bucket["name"]
+                    )
+                except sd_lock_utility.exceptions.S3IncompatibleBucketName:
+                    s3_accessible = False
+                except botocore.exceptions.ParamValidationError:
+                    s3_accessible = False
 
             # Start the file migration
             for migration_object in tqdm.tqdm(
