@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
+- Prevent converted bucket name collisions in CLI (#100)
 - Sync shares with sharing API during sharing migration (#105)
 
 ## [2026.9.0] - 2026-09-16
