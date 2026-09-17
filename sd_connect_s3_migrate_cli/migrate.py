@@ -408,6 +408,60 @@ def handle_invalid_token(
     )
 
 
+async def migrate_shares_db(
+    session: sd_lock_utility.types.SDAPISession,
+    bucket: str,
+):
+    """Retrieve bucket policy, vault whitelist, add share to SD Connect sharing database."""
+    # Get bucket policy
+    resp = await session["s3_client"].get_bucket_policy(Bucket=bucket)
+    if resp["Policy"] is not None:
+        policy = json.loads(resp["Policy"])
+        statements = [
+            s
+            for s in policy["Statement"]
+            if s["Sid"] == "GrantSDConnectSharedAccessToProject"
+        ]
+        for statement in statements:
+            try:
+                # Analyze statements and retrieve sharing whitelist
+                principal = statement["Principal"]["AWS"]
+                match = re.search("::([0-9a-fA-F]+):root$", principal)
+                receiver: str
+                if match:
+                    receiver = match.group(1)
+                read: bool = "s3:GetObject" in statement["Action"]
+                write: bool = "s3:PutObject" in statement["Action"]
+                # Check vault sharing
+                vault_sharing: sd_lock_utility.types.VaultSharedProjectId | None = (
+                    await sd_lock_utility.client.check_folder_share_whitelist(
+                        session,
+                        bucket,
+                        receiver,
+                    )
+                )
+                whitelisted: bool = vault_sharing is not None
+
+                await sd_lock_utility.client.add_share_to_sharing_db(
+                    session,
+                    bucket,
+                    receiver,
+                    read,
+                    write,
+                    whitelisted,
+                )
+            except sd_lock_utility.exceptions.InvalidShareAccess:
+                click.echo(
+                    f"Incongruous bucket policy and sharing whitelist on bucket {bucket}:",
+                    err=True,
+                )
+                click.echo(
+                    f"Receiver {receiver}, read: {read}, write: {write}, whitelisted: {whitelisted}",
+                    err=True,
+                )
+                continue
+
+
 async def initialize_conversion_client_wrapper(
     username: str, keystone_host: str, data_dir: str, dry_run: bool
 ) -> int:
@@ -827,6 +881,16 @@ async def initialize_conversion(
                 except sd_lock_utility.exceptions.Unauthorized:
                     handle_invalid_token(data_dir, lock_util_session, migration)
                     return 1
+
+                # Add shares to SD Connect DB
+                # Swallow errors since UI has a sharing DB sync
+                try:
+                    await migrate_shares_db(session, migration_bucket["convertedName"])
+                except Exception:
+                    click.echo(
+                        f"Error adding {migration_bucket["convertedName"]} sharing entries to DB",
+                        err=True,
+                    )
 
                 migration_bucket["sharingMigrated"] = True
 
