@@ -24,6 +24,7 @@ import sd_lock_utility.s3_client
 import sd_lock_utility.types
 import tqdm
 
+import sd_connect_s3_migrate_cli.delete
 import sd_connect_s3_migrate_cli.select
 import sd_connect_s3_migrate_cli.state
 import sd_connect_s3_migrate_cli.types
@@ -1039,6 +1040,50 @@ async def initialize_conversion(
             )
 
     click.echo("Migration finished, finishing the migration state.")
-    sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
+    finished_path: str = sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
+
+    click.echo(f"Migration report was saved as {finished_path}.")
+    click.echo(
+        f"""Migration report contains {
+        sum([bucket['totalObjectsDone'] for bucket in migration])
+    } migrated files, consuming {
+        sum([bucket['bytesDone'] for bucket in migration])
+    } of storage space."""
+    )
+
+    if click.confirm("Do you want to clean up the old files?", default=False):
+        click.echo("Cleaning up the migrated files.")
+        click.echo(
+            """\
+SD Connect S3 Migrate CLI can use two methods of verifying migrated file
+contents before deletion: hard verification and soft verification (default).
+Hard verification downloads each migrated file and calculates a checksum based
+on the downloaded content before deletion. Soft verification compares the md5
+checksums of successfully migrated parts and deletes the content if they match.
+
+The limitation of the soft verification is, that it does not actually validate the
+complete file, instead assuming that if all segments are present, the file has
+been successfully migrated. Hard verification ensures that the full file has been
+migrated, and the file is exactly the same as the original, at the cost of consuming
+more bandwidth by reading all of the files twice.
+
+If you cannot recover the dataset you have migrated, hard verification is the
+recommended approach. If you have a backup of the data somewhere else, or can rebuild
+the data using some other source, soft verification is enough and will save bandwidth.
+"""
+        )
+
+        hard: bool = click.confirm(
+            "Use hard verification before deletion?", default=False
+        )
+        deleted_items = await sd_connect_s3_migrate_cli.delete.clean_up_migration(
+            lock_util_session, migration, hard
+        )
+        click.echo(deleted_items)
+    else:
+        click.echo(
+            "Not cleaning up the migrated files. You can check the migrated files from "
+            "the migration report in the bucket later."
+        )
 
     return ret

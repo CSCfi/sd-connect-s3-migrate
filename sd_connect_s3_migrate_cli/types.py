@@ -49,6 +49,32 @@ class MigrationEntry(typing.TypedDict):
 MigrationBucketList = list[MigrationEntry]
 
 
+class MigrationDeletedItemChecksum(typing.TypedDict):
+    """Checksum entry of a migration deleted item."""
+
+    type: typing.Literal["md5", "sha256"]
+    checksum: str
+
+
+class MigrationDeletedPart(typing.TypedDict):
+    """Migration deletion entry for a MultipartPart."""
+
+    key: str
+    oldBucket: str
+    newBucket: str
+    deleted: bool
+    checksum: MigrationDeletedItemChecksum | None
+
+
+class MigrationDeletedItem(MigrationDeletedPart):
+    """Migration deletion entry."""
+
+    parts: list[MigrationDeletedPart]
+
+
+MigrationDeleteList = list[MigrationDeletedItem]
+
+
 class OpenstackProject(typing.TypedDict):
     """Openstack project information."""
 
