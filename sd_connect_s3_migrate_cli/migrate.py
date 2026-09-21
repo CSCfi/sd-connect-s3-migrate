@@ -60,6 +60,28 @@ def convert_bucket_name(bucket: str, bucket_suffix: str = "") -> str:
         return f"{slug}{bucket_suffix}"
 
 
+def format_human_readable_size(size: int) -> str:
+    """Convert a size in bytes to a human-readable variant."""
+    # We will not go higher than petabytes, since the storage doesn't fit more
+    unit = {
+        "0": "B",
+        "1": "KiB",
+        "2": "MiB",
+        "3": "GiB",
+        "4": "TiB",
+        "5": "PiB",
+    }
+
+    divisions = 0
+    size_div: float = size
+
+    while size_div > 1024 and divisions < 5:
+        size_div = size_div / 1024
+        divisions += 1
+
+    return f"{size_div:.2f} {unit[str(divisions)]}"
+
+
 def init_opts(
     session: sd_lock_utility.types.SDAPISession,
     migration: sd_connect_s3_migrate_cli.types.MigrationEntry,
@@ -465,7 +487,12 @@ async def migrate_shares_db(
 
 
 async def initialize_conversion_client_wrapper(
-    username: str, keystone_host: str, data_dir: str, dry_run: bool
+    username: str,
+    keystone_host: str,
+    data_dir: str,
+    dry_run: bool,
+    verbose: bool,
+    debug: bool,
 ) -> int:
     """Add wrapper for proper closing of aiohttp client."""
     # Borrowing the relevant code and functionality from sd-lock-util
@@ -496,7 +523,13 @@ async def initialize_conversion_client_wrapper(
     ) as client:
         lock_util_session["client"] = client
         return await initialize_conversion(
-            lock_util_session, username, keystone_host, data_dir, dry_run
+            lock_util_session,
+            username,
+            keystone_host,
+            data_dir,
+            dry_run,
+            verbose,
+            debug,
         )
 
 
@@ -659,6 +692,8 @@ async def initialize_conversion(
     keystone_host: str,
     data_dir: str,
     dry_run: bool,
+    verbose: bool,
+    debug: bool,
 ) -> int:
     """Initialize the required parameters for a conversion process."""
     ret = 0
@@ -1047,7 +1082,9 @@ async def initialize_conversion(
         f"""Migration report contains {
         sum([bucket['totalObjectsDone'] for bucket in migration])
     } migrated files, consuming {
-        sum([bucket['bytesDone'] for bucket in migration])
+        format_human_readable_size(
+            sum([bucket['bytesDone'] for bucket in migration])
+        )
     } of storage space."""
     )
 
@@ -1077,9 +1114,14 @@ the data using some other source, soft verification is enough and will save band
             "Use hard verification before deletion?", default=False
         )
         deleted_items = await sd_connect_s3_migrate_cli.delete.clean_up_migration(
-            lock_util_session, migration, hard
+            lock_util_session,
+            migration,
+            hard,
+            verbose,
+            debug,
         )
-        click.echo(deleted_items)
+        if debug:
+            click.echo(deleted_items)
     else:
         click.echo(
             "Not cleaning up the migrated files. You can check the migrated files from "

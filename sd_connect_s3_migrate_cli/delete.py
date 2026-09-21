@@ -12,6 +12,7 @@ import sd_connect_s3_migrate_cli.types
 async def calculate_segmented_object_checksum(
     session: sd_lock_utility.types.SDAPISession,
     manifest: str,
+    debug: bool = False,
 ) -> str:
     """Calculate the sha256 checksum of a segmented object from manifest."""
     # Create a local session, as we need to edit the bucket configuration
@@ -30,19 +31,21 @@ async def calculate_segmented_object_checksum(
     )
     # Sort the objects by order number
     objects.sort(key=(lambda o: o["name"].split("/")[-1]))
-    click.echo("Got the following segment objects:")
-    click.echo(objects)
+    if debug:
+        click.echo("Got the following segment objects:")
+        click.echo(objects)
 
     # Create the hashing context
     h = hashlib.sha256()
 
     for object in objects:
         # Retrieve objects in order and concatenate the contents
-        click.echo(
-            f"Concatenating segment {object['name'].split("/")[-1]} to the hash instance."
-        )
+        if debug:
+            click.echo(
+                f"Concatenating segment {object['name'].split("/")[-1]} to the hash instance."
+            )
         async with local_session["client"].get(
-            f"{local_session['openstack_object_storage_endpoint']}/{object['name']}",
+            f"{local_session['openstack_object_storage_endpoint']}/{bucket}/{object['name']}",
             headers={
                 "X-Auth-Token": await sd_lock_utility.os_client.openstack_get_token(
                     local_session
@@ -54,7 +57,8 @@ async def calculate_segmented_object_checksum(
                 h.update(chunk)
 
     checksum: str = h.hexdigest()
-    click.echo(f"Original object checksum: {checksum}")
+    if debug:
+        click.echo(f"Original object checksum: {checksum}")
 
     return checksum
 
@@ -63,6 +67,7 @@ async def calculate_object_checksum(
     session: sd_lock_utility.types.SDAPISession,
     bucket: str,
     key: str,
+    debug: bool,
 ) -> str:
     """Calculate the sha256 checksum of a specified object."""
     # Create a local session, as we need to edit the bucket configuration
@@ -87,7 +92,8 @@ async def calculate_object_checksum(
             h.update(chunk)
 
     checksum: str = h.hexdigest()
-    click.echo(f"Object checksum: {checksum}")
+    if debug:
+        click.echo(f"Object checksum: {checksum}")
 
     return checksum
 
@@ -95,6 +101,8 @@ async def calculate_object_checksum(
 async def delete_bucket_if_empty(
     session: sd_lock_utility.types.SDAPISession,
     bucket: str,
+    verbose: bool = False,
+    debug: bool = False,
 ):
     """Delete the marked bucket if it does not contain objects."""
     local_session = session.copy()
@@ -110,12 +118,18 @@ async def delete_bucket_if_empty(
         },
     ) as resp:
         if resp.status == 409:
-            click.echo("Bucket not yet empty, delete not successful.")
+            if debug:
+                click.echo(f"Bucket {bucket} not yet empty, delete not successful.")
+        else:
+            if verbose or debug:
+                click.echo(f"Bucket {bucket} successfully deleted.")
 
 
 async def delete_object_segments(
     session: sd_lock_utility.types.SDAPISession,
     manifest: str,
+    verbose: bool = False,
+    debug: bool = False,
 ):
     """Delete the segments of the object."""
     # Create a local session, as we need to edit the bucket configuration
@@ -134,24 +148,29 @@ async def delete_object_segments(
     )
     # Sort the objects by order number
     objects.sort(key=(lambda o: o["name"].split("/")[-1]))
-    click.echo("Got the following segment objects:")
-    click.echo(objects)
+    if debug:
+        click.echo("Got the following segment objects:")
+        click.echo(objects)
 
     for object in objects:
         # Delete the segment object
-        click.echo(f"Deleting segment {object['name'].split("/")[-1]} from the bucket.")
+        if verbose or debug:
+            click.echo(
+                f"Deleting segment {object['name'].split("/")[-1]} from the bucket."
+            )
         async with local_session["client"].delete(
-            f"{local_session['openstack_object_storage_endpoint']}/{object['name']}",
+            f"{local_session['openstack_object_storage_endpoint']}/{bucket}/{object['name']}",
             headers={
                 "X-Auth-Token": await sd_lock_utility.os_client.openstack_get_token(
                     local_session
                 ),
             },
         ) as resp:
-            click.echo(resp.status)
+            if debug:
+                click.echo(resp.status)
 
     # Try deleting the segments bucket
-    await delete_bucket_if_empty(session, bucket)
+    await delete_bucket_if_empty(session, bucket, verbose, debug)
 
 
 async def delete_migrated_part(
@@ -159,6 +178,8 @@ async def delete_migrated_part(
     migration: sd_connect_s3_migrate_cli.types.MigrationEntry,
     object: sd_connect_s3_migrate_cli.types.MigrationObject,
     part: sd_connect_s3_migrate_cli.types.MigrationObjectPart,
+    verbose: bool,
+    debug: bool,
 ) -> sd_connect_s3_migrate_cli.types.MigrationDeletedPart:
     """Delete a single segment or multipart part moved in the migration."""
     local_session = session.copy()
@@ -169,21 +190,30 @@ async def delete_migrated_part(
 
     # Retrieve the most recent checksum of the old part
     local_session["container"] = old_bucket
+    if debug:
+        click.echo(
+            f"{local_session['openstack_object_storage_endpoint']}/{old_bucket}/{part['originalKey']}"
+        )
     async with local_session["client"].head(
-        f"{local_session['openstack_object_storage_endpoint']}/{part['originalKey']}",
+        f"{local_session['openstack_object_storage_endpoint']}/{old_bucket}/{part['originalKey']}",
         headers={
             "X-Auth-Token": await sd_lock_utility.os_client.openstack_get_token(
                 local_session
             ),
         },
     ) as resp:
+        if debug:
+            click.echo(resp.headers)
         old_checksum: str = resp.headers["ETag"]
 
     # Delete if the most recent part checksum matches the migrated part
     if old_checksum == part["ETag"]:
-        click.echo("Checksums match, deleting original part.")
+        if debug:
+            click.echo(
+                f"Checksums match, deleting original part {part['originalKey']} in {old_bucket}."
+            )
         async with local_session["client"].delete(
-            f"{local_session['openstack_object_storage_endpoint']}/{part['originalKey']}",
+            f"{local_session['openstack_object_storage_endpoint']}/{old_bucket}/{part['originalKey']}",
             headers={
                 "X-Auth-Token": await sd_lock_utility.os_client.openstack_get_token(
                     local_session
@@ -192,12 +222,14 @@ async def delete_migrated_part(
         ) as resp:
             if resp.status == 204 or resp.status == 404:
                 deleted = True
-            click.echo(resp)
+            if debug:
+                click.echo(resp)
     else:
-        click.echo("Checksums don't match, leaving the original in place.")
+        if verbose or debug:
+            click.echo("Checksums don't match, leaving the original in place.")
 
     # Try deleting the segment bucket
-    await delete_bucket_if_empty(session, old_bucket)
+    await delete_bucket_if_empty(session, old_bucket, verbose, debug)
 
     return {
         "checksum": {
@@ -244,6 +276,8 @@ async def delete_migrated_item(
     migration: sd_connect_s3_migrate_cli.types.MigrationEntry,
     object: sd_connect_s3_migrate_cli.types.MigrationObject,
     hard: bool,
+    verbose: bool,
+    debug: bool,
 ) -> sd_connect_s3_migrate_cli.types.MigrationDeletedItem:
     """Delete a single file moved in the migration."""
     deleted_item: sd_connect_s3_migrate_cli.types.MigrationDeletedItem = {
@@ -261,28 +295,41 @@ async def delete_migrated_item(
         if object["manifestBackup"]:
             # If the object was segmented, manually concatenate the segments
             old_checksum = await calculate_segmented_object_checksum(
-                session, object["manifestBackup"]
+                session,
+                object["manifestBackup"],
+                debug,
             )
         else:
             # Calculate the object directly from the original
             old_checksum = await calculate_object_checksum(
-                session, migration["name"], object["key"]
+                session,
+                migration["name"],
+                object["key"],
+                debug,
             )
 
         # Calculate sha256 for the new object
         new_checksum = await calculate_object_checksum(
-            session, migration["convertedName"], object["key"]
+            session,
+            migration["convertedName"],
+            object["key"],
+            debug,
         )
         if old_checksum == new_checksum and object["manifestBackup"]:
-            click.echo("Checksums match, deleting old segments.")
-            await delete_object_segments(session, object["manifestBackup"])
+            if verbose or debug:
+                click.echo("Checksums match for segmented file, deleting old segments.")
+            await delete_object_segments(
+                session, object["manifestBackup"], verbose, debug
+            )
             deleted_item["deleted"] = True
-        elif old_checksum == new_checksum:
-            click.echo("Checksums match, deleting old object.")
+        if old_checksum == new_checksum:
+            if verbose or debug:
+                click.echo("Checksums match, deleting old object.")
             if await delete_migrated_object(session, migration, object):
                 deleted_item["deleted"] = True
         else:
-            click.echo("Checksums don't match, leaving the old segments for now.")
+            if verbose or debug:
+                click.echo("Checksums don't match, leaving the old segments for now.")
     else:
         if object["multipartParts"]:
             for part in object["multipartParts"]:
@@ -292,9 +339,12 @@ async def delete_migrated_item(
                         migration,
                         object,
                         part,
+                        verbose,
+                        debug,
                     )
                 )
                 deleted_item["parts"].append(deleted_part)
+        # Let's always try to delete the migrated object
         if await delete_migrated_object(session, migration, object):
             deleted_item["deleted"] = True
 
@@ -305,6 +355,8 @@ async def clean_up_migration(
     session: sd_lock_utility.types.SDAPISession,
     migrations: sd_connect_s3_migrate_cli.types.MigrationBucketList,
     hard: bool,
+    verbose: bool,
+    debug: bool,
 ) -> sd_connect_s3_migrate_cli.types.MigrationDeleteList:
     """Clean up the redundant data after migration."""
     deleted_items: sd_connect_s3_migrate_cli.types.MigrationDeleteList = []
@@ -317,8 +369,15 @@ async def clean_up_migration(
                     migration,
                     object,
                     hard,
+                    verbose,
+                    debug,
                 )
             )
             deleted_items.append(deleted_object)
+
+        # Try deleting the original bucket if the bucket name changed
+        if migration["name"] != migration["convertedName"]:
+            click.echo("Deleting the original bucket if it is empty.")
+            await delete_bucket_if_empty(session, migration["name"], verbose, debug)
 
     return deleted_items
