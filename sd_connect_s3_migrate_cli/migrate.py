@@ -732,7 +732,7 @@ async def initialize_conversion(
         lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
         if not lock_util_session["openstack_username"]:
             lock_util_session["openstack_username"] = click.prompt(
-                "Please enter your Openstack username", default=""
+                "Please enter your CSC username", default=""
             )
             if not lock_util_session["openstack_username"]:
                 click.echo("No username was provided. Aborting.", err=True)
@@ -745,7 +745,7 @@ async def initialize_conversion(
         and not lock_util_session["openstack_token"]
     ):
         lock_util_session["openstack_password"] = click.prompt(
-            "Please enter your Openstack password", default="", hide_input=True
+            "Please enter your CSC password", default="", hide_input=True
         )
         if not lock_util_session["openstack_password"]:
             click.echo("No password was provided. Aborting.", err=True)
