@@ -7,13 +7,24 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.1] - 2026-09-23
+
 ### Added
 
+- (users) the migration CLI can now delete the empty buckets resulting from migration.
+- (users) the migration CLI prompts for deletion either with full checksums or Allas checksums for verification.
+- (users) the migration CLI can now clean up the migrated files.
+- the migration CLI can now delete the empty buckets resulting from migration.
+- the migration CLI hard mode deletion by calculating fresh checksums from the full object.
+- the migration CLI soft mode deletion with checksums on Allas.
+- the migration CLI now has `--debug` and `--verbose` flags for altering the level of displayed information.
+- the migration CLI can now clean up the migrated files.
 - Prevent converted bucket name collisions in CLI (#100)
 - Sync shares with sharing API during sharing migration (#105)
 
 ### Changed
 
+- (users) request CSC username and password instead of generic Openstack username and password.
 - Update SD Connect link to PROD (#107)
 
 ## [2026.9.0] - 2026-09-16
@@ -239,7 +250,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.0...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.1...HEAD
+[2026.9.1]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.0...2026.9.1
 [2026.9.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.6...2026.9.0
 [2026.8.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.5...2026.8.6
 [2026.8.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.8.4...2026.8.5
