@@ -10,13 +10,11 @@ import sd_connect_s3_migrate_cli.migrate
 
 
 @click.command()
-@click.option(
-    "--username", default="", help="The openstack username to use when logging in."
-)
+@click.option("--username", default="", help="The CSC username to use when logging in.")
 @click.option(
     "--keystone-host",
     default="",
-    help="The openstack authentication endpoint to use when logging  in.",
+    help="The Openstack (cPouta) authentication endpoint to use when logging in.",
 )
 @click.option(
     "--data-dir",

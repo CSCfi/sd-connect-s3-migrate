@@ -24,9 +24,12 @@ import sd_lock_utility.s3_client
 import sd_lock_utility.types
 import tqdm
 
+import sd_connect_s3_migrate_cli.delete
 import sd_connect_s3_migrate_cli.select
 import sd_connect_s3_migrate_cli.state
 import sd_connect_s3_migrate_cli.types
+
+DEBUG_MODE = bool(os.environ.get("SD_CONNECT_S3_MIGRATE_DEBUG", False))
 
 
 def convert_bucket_name(bucket: str, bucket_suffix: str = "") -> str:
@@ -57,6 +60,28 @@ def convert_bucket_name(bucket: str, bucket_suffix: str = "") -> str:
         return slug
     else:
         return f"{slug}{bucket_suffix}"
+
+
+def format_human_readable_size(size: int) -> str:
+    """Convert a size in bytes to a human-readable variant."""
+    # We will not go higher than petabytes, since the storage doesn't fit more
+    unit = {
+        "0": "B",
+        "1": "KiB",
+        "2": "MiB",
+        "3": "GiB",
+        "4": "TiB",
+        "5": "PiB",
+    }
+
+    divisions = 0
+    size_div: float = size
+
+    while size_div > 1024 and divisions < 5:
+        size_div = size_div / 1024
+        divisions += 1
+
+    return f"{size_div:.2f} {unit[str(divisions)]}"
 
 
 def init_opts(
@@ -464,7 +489,10 @@ async def migrate_shares_db(
 
 
 async def initialize_conversion_client_wrapper(
-    username: str, keystone_host: str, data_dir: str, dry_run: bool
+    username: str,
+    keystone_host: str,
+    data_dir: str,
+    dry_run: bool,
 ) -> int:
     """Add wrapper for proper closing of aiohttp client."""
     # Borrowing the relevant code and functionality from sd-lock-util
@@ -495,7 +523,11 @@ async def initialize_conversion_client_wrapper(
     ) as client:
         lock_util_session["client"] = client
         return await initialize_conversion(
-            lock_util_session, username, keystone_host, data_dir, dry_run
+            lock_util_session,
+            username,
+            keystone_host,
+            data_dir,
+            dry_run,
         )
 
 
@@ -696,7 +728,7 @@ async def initialize_conversion(
         lock_util_session["openstack_username"] = os.environ.get("OS_USERNAME", username)
         if not lock_util_session["openstack_username"]:
             lock_util_session["openstack_username"] = click.prompt(
-                "Please enter your Openstack username", default=""
+                "Please enter your CSC username", default=""
             )
             if not lock_util_session["openstack_username"]:
                 click.echo("No username was provided. Aborting.", err=True)
@@ -709,7 +741,7 @@ async def initialize_conversion(
         and not lock_util_session["openstack_token"]
     ):
         lock_util_session["openstack_password"] = click.prompt(
-            "Please enter your Openstack password", default="", hide_input=True
+            "Please enter your CSC password", default="", hide_input=True
         )
         if not lock_util_session["openstack_password"]:
             click.echo("No password was provided. Aborting.", err=True)
@@ -734,11 +766,15 @@ async def initialize_conversion(
 
     # Select the project to use, unless it was provided
     lock_util_session["openstack_project_id"] = os.environ.get("OS_PROJECT_ID", "")
+    lock_util_session["openstack_project_name"] = os.environ.get("OS_PROJECT_NAME", "")
     lock_util_session["openstack_user_domain"] = os.environ.get(
         "OS_USER_DOMAIN_NAME", "Default"
     )
 
-    if not lock_util_session["openstack_project_id"]:
+    if (
+        not lock_util_session["openstack_project_id"]
+        or not lock_util_session["openstack_project_name"]
+    ):
         try:
             projects: sd_lock_utility.types.OpenstackProjectList = (
                 await sd_lock_utility.os_client.openstack_get_projects(lock_util_session)
@@ -773,7 +809,17 @@ async def initialize_conversion(
             lock_util_session["openstack_project_name"] = previous_state["project"][
                 "name"
             ]
-
+        elif (
+            lock_util_session["openstack_project_id"]
+            and not lock_util_session["openstack_project_name"]
+        ):
+            lock_util_session["openstack_project_name"] = list(
+                filter(
+                    lambda project: project["id"]
+                    == lock_util_session["openstack_project_id"],
+                    projects["projects"],
+                )
+            )[0]["name"]
         else:
             message = ""
             while True:
@@ -1039,6 +1085,23 @@ async def initialize_conversion(
             )
 
     click.echo("Migration finished, finishing the migration state.")
-    sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
+    finished_path: str = sd_connect_s3_migrate_cli.state.finish_migration(data_dir)
+
+    click.echo(f"Migration report was saved as {finished_path}.")
+    click.echo(
+        f"""Migration report contains {
+        sum([bucket['totalObjectsDone'] for bucket in migration])
+    } migrated files, consuming {
+        format_human_readable_size(
+            sum([bucket['bytesDone'] for bucket in migration])
+        )
+    } of storage space."""
+    )
+
+    ret = await sd_connect_s3_migrate_cli.delete.clean_up_migration(
+        lock_util_session,
+        migration,
+        DEBUG_MODE,
+    )
 
     return ret
