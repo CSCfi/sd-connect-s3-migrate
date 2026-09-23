@@ -12,6 +12,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Prevent converted bucket name collisions in CLI (#100)
 - Sync shares with sharing API during sharing migration (#105)
 
+### Changed
+
+- Update SD Connect link to PROD (#107)
+
 ## [2026.9.0] - 2026-09-16
 
 ### Changed
