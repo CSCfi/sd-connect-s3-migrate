@@ -766,11 +766,15 @@ async def initialize_conversion(
 
     # Select the project to use, unless it was provided
     lock_util_session["openstack_project_id"] = os.environ.get("OS_PROJECT_ID", "")
+    lock_util_session["openstack_project_name"] = os.environ.get("OS_PROJECT_NAME", "")
     lock_util_session["openstack_user_domain"] = os.environ.get(
         "OS_USER_DOMAIN_NAME", "Default"
     )
 
-    if not lock_util_session["openstack_project_id"]:
+    if (
+        not lock_util_session["openstack_project_id"]
+        or not lock_util_session["openstack_project_name"]
+    ):
         try:
             projects: sd_lock_utility.types.OpenstackProjectList = (
                 await sd_lock_utility.os_client.openstack_get_projects(lock_util_session)
@@ -805,7 +809,17 @@ async def initialize_conversion(
             lock_util_session["openstack_project_name"] = previous_state["project"][
                 "name"
             ]
-
+        elif (
+            lock_util_session["openstack_project_id"]
+            and not lock_util_session["openstack_project_name"]
+        ):
+            lock_util_session["openstack_project_name"] = list(
+                filter(
+                    lambda project: project["id"]
+                    == lock_util_session["openstack_project_id"],
+                    projects["projects"],
+                )
+            )[0]["name"]
         else:
             message = ""
             while True:
