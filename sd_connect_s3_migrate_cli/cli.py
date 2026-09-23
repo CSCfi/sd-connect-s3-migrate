@@ -10,13 +10,11 @@ import sd_connect_s3_migrate_cli.migrate
 
 
 @click.command()
-@click.option(
-    "--username", default="", help="The openstack username to use when logging in."
-)
+@click.option("--username", default="", help="The CSC username to use when logging in.")
 @click.option(
     "--keystone-host",
     default="",
-    help="The openstack authentication endpoint to use when logging  in.",
+    help="The Openstack (cPouta) authentication endpoint to use when logging in.",
 )
 @click.option(
     "--data-dir",
@@ -26,17 +24,11 @@ import sd_connect_s3_migrate_cli.migrate
 @click.option(
     "--dry-run", is_flag=True, help="Toggle dry-run mode to not actually migrate files."
 )
-@click.option("--verbose", is_flag=True, help="Increase verbosity.")
-@click.option(
-    "--debug", is_flag=True, help="Toggle debug mode with the highest level of verbosity."
-)
 def convert(
     username: str,
     keystone_host: str,
     data_dir: str,
     dry_run: bool,
-    verbose: bool,
-    debug: bool,
 ):
     """Convert project resources into an S3 compatible form."""
     try:
@@ -46,8 +38,6 @@ def convert(
                 keystone_host,
                 data_dir,
                 dry_run,
-                verbose,
-                debug,
             )
         )
     except KeyboardInterrupt:
