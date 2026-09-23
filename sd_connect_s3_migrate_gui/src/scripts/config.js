@@ -12,7 +12,7 @@ export async function getSDConnectAPIEndpoint() {
   if (await window.appEnv.devMode()) {
     return "https://sd-connect.sdd.csc.fi";
   } else {
-    return "https://sd-connect.sdqa.csc.fi";
+    return "https://sd-connect.csc.fi";
   }
 }
 
