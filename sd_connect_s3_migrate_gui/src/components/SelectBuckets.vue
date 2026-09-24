@@ -60,7 +60,7 @@ import { mdiOpenInNew, mdiPail } from "@mdi/js";
 import { estimatedBytesPerSec, getBucketStatus, getTimeEstimate } from "../scripts/common";
 import { getBuckets } from "../scripts/openstack";
 import { ListBucketsCommand } from "@aws-sdk/client-s3";
-import { NEW_VERSION_DATE } from "../scripts/config";
+//import { NEW_VERSION_DATE } from "../scripts/config";
 
 const { project, scopedToken, s3client } = defineProps(["project", "scopedToken", "s3client"]);
 
@@ -247,11 +247,12 @@ function getRecommendedAction(bucket) {
   }
 
   // No need to migrate buckets created with V3
-  if (bucket?.created > NEW_VERSION_DATE) {
+  /*if (bucket?.created > NEW_VERSION_DATE) {
     return 0;
-  }
+  }*/
   // Undetermined, migrate in case of sharing
-  return 1;
+  // For now we assume V3/migrated to not make this async
+  return 0;
 }
 </script>
 <style scoped>
