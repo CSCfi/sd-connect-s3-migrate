@@ -44,6 +44,7 @@ util.inspect.defaultOptions = {
 
 // Initialize electron logger
 log.initialize();
+log.transports.file.maxSize = 50 * 1024 * 1024; // 50 MB
 log.transports.file.resolvePathFn = () => LOG_FILE_PATH;
 
 // Override default logger functions
