@@ -127,11 +127,7 @@ async function deleteMigrated(buckets) {
       // Get converted objects
       let s3Objects;
       try {
-        const listObjectsCmd = new ListObjectsV2Command({
-          Bucket: bucket.convertedName,
-        });
-        const listObjectsResp = await s3client.send(listObjectsCmd);
-        s3Objects = listObjectsResp?.Contents || [];
+        s3Objects = await listS3Objects(bucket.convertedName);
       } catch (e) {
         console.error(`Could not retrieve migrated objects from ${bucket.convertedName}`);
         console.error(e);
@@ -174,6 +170,27 @@ async function deleteMigrated(buckets) {
     }
   }
   return Array.from(errorSet);
+}
+
+async function listS3Objects(bucket) {
+  let continuationToken;
+  let s3objects = [];
+
+  do {
+    let listObjectsCommandParams = {
+      Bucket: bucket,
+      ContinuationToken: continuationToken,
+    };
+    const command = new ListObjectsV2Command(listObjectsCommandParams);
+    const response = await s3client.send(command);
+
+    if (response?.Contents) {
+      s3objects.push(...response.Contents);
+    }
+    continuationToken = response?.NextContinuationToken;
+  } while (continuationToken);
+
+  return s3objects;
 }
 
 /**
