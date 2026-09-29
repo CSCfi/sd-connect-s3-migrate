@@ -439,7 +439,6 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
   }
 
   console.log(`Retrieved object ${key}`);
-  devConsole.log(object);
 
   return object;
 }
