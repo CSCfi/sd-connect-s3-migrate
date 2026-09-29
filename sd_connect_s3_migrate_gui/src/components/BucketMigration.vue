@@ -485,7 +485,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       const hashSha256 = new Uint8Array(hashSha256Buffer).toHex();
       console.log(`Object part ${i} checksum (sha256): ${hashSha256}`);
 
-      const putObjectPart = new UploadPartCommand({
+      let putObjectPart = new UploadPartCommand({
         Body: object,
         Bucket: convertedBucket,
         Key: key,
@@ -501,6 +501,9 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
         ChecksumSHA256: hashSha256,
       });
       partNumber++;
+      // Reset object and references
+      object = null;
+      putObjectPart = null;
     }
     console.log("Multipart upload parts", multipartParts);
 
