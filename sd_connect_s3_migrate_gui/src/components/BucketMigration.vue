@@ -386,8 +386,8 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       const multipartPartResp = await s3client.send(multipartCopyCommand);
 
       // Check that the checksums match with the part and original
-      console.log("Segment hash:", segment.hash);
-      console.log("Multipart response ETag:", multipartPartResp.ETag.replaceAll('"', ""));
+      console.log("Segment hash:", segment?.hash);
+      console.log("Multipart response ETag:", multipartPartResp?.CopyPartResult?.ETag?.replaceAll('"', ""));
 
       multipartParts.push({
         ETag: segment.hash,
