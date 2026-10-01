@@ -386,8 +386,8 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
       const multipartPartResp = await s3client.send(multipartCopyCommand);
 
       // Check that the checksums match with the part and original
-      console.log("Segment hash:", segment.hash);
-      console.log("Multipart response ETag:", multipartPartResp.ETag.replaceAll('"', ""));
+      console.log("Segment hash:", segment?.hash);
+      console.log("Multipart response ETag:", multipartPartResp?.CopyPartResult?.ETag?.replaceAll('"', ""));
 
       multipartParts.push({
         ETag: segment.hash,
@@ -478,7 +478,15 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
     for (let i = 0; i < size; i = i + 100 * 1024 * 1024) {
       // Get the next 100 MiB of the object (using inclusive range)
       console.log(`Getting the next part of object ${key}`);
-      let object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+      let object;
+      try {
+        object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+      } catch (e) {
+        console.error(`Object ${key} fetch failed:`);
+        console.error(e);
+        console.warn("Retrying object fetch.");
+        object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+      }
 
       // Calculate the object checksum using sha256 (no native md5 in browser)
       const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);

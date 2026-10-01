@@ -982,8 +982,9 @@ async def initialize_conversion(
                 await wrap_object_copy(
                     session, tmp_opts, migration_object, s3_accessible, dry_run
                 )
-                migration_bucket["totalObjectsDone"] += 1
-                migration_bucket["bytesDone"] += migration_object["bytes"]
+                if migration_object["contentDone"]:
+                    migration_bucket["totalObjectsDone"] += 1
+                    migration_bucket["bytesDone"] += migration_object["bytes"]
 
                 sd_connect_s3_migrate_cli.state.save_migration_state(
                     data_dir,
