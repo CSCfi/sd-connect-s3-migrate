@@ -7,6 +7,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.0] - 2026-10-01
+
+### Fixed
+
+- Fixed GUI s3-accessible buckets failing to use s3 multipart copy
+- Fixed CLI migration marking failed objects as migrated
+
 ## [2026.9.6] - 2026-09-29
 
 ### Changed
@@ -288,7 +295,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.6...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.0...HEAD
+[2026.10.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.6...2026.10.0
 [2026.9.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.5...2026.9.6
 [2026.9.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.4...2026.9.5
 [2026.9.4]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.3...2026.9.4
