@@ -592,6 +592,9 @@ async def initialize_conversion_client_wrapper(
         connector=aiohttp.TCPConnector(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
         ),
+        timeout=aiohttp.ClientTimeout(
+            total=(3600 * 8),  # Allow request to run for 8 hours
+        ),
     ) as client:
         lock_util_session["client"] = client
         return await initialize_conversion(
