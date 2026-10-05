@@ -206,7 +206,7 @@ async def copy_multipart_part_streaming(
             "UploadId": upload_id,
             # "ChecksumMD5": migration_object_part["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
@@ -259,7 +259,7 @@ async def copy_object_streaming(
             "Key": migration_object["key"],
             # "ContentMD5": migration_object["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
