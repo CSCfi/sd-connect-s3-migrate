@@ -434,6 +434,61 @@ def handle_invalid_token(
     )
 
 
+async def preserve_bucket_owner_access(
+    opts: sd_lock_utility.types.SDCommandBaseOptions,
+    session: sd_lock_utility.types.SDAPISession,
+    bucket: str,
+):
+    """Ensure that the bucket access preservation policy exists."""
+    # Retrieve the old bucket policy
+    try:
+        policy: sd_lock_utility.types.AWSBucketPolicy = (
+            await sd_lock_utility.s3_client.s3_get_bucket_policy(opts, session, bucket)
+        )
+    except botocore.exceptions.ClientError as e:
+        if e.response["ResponseMetadata"]["HTTPStatusCode"] == 400:
+            # We don't concern ourselves with error 400, as these buckets will
+            # get migrated conventionally
+            return
+
+    # Check if the old policy already contains the access preservation
+    for statement in policy["Statement"]:
+        if (
+            statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
+            and session["openstack_project_id"] in statement["Principal"]["AWS"]
+        ):
+            return
+        elif (
+            statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
+            and session["openstack_project_id"] not in statement["Principal"]["AWS"]
+        ):
+            # Some other project is for some reason preserved under the reserved Sid.
+            # We'll revoke this access as incorrect.
+            policy["Statement"].remove(statement)
+
+    # Add the preservation policy to the statement
+    policy["Statement"].append(
+        {
+            "Sid": "GrantSDConnectPreserveOwnerAccess",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": f"arn:aws:iam::{session['openstack_project_id']}:root",
+            },
+            "Action": [
+                "s3:*",
+            ],
+            "Resource": [
+                f"arn:aws:s3:::{bucket}",
+                f"arn:aws:s3:::{bucket}/*",
+            ],
+        }
+    )
+
+    # Not catching exceptions, as accessing bucket should not be able to fail
+    # at this point of execution
+    await sd_lock_utility.s3_client.s3_add_bucket_policy(opts, session, bucket, policy)
+
+
 async def migrate_shares_db(
     session: sd_lock_utility.types.SDAPISession,
     bucket: str,

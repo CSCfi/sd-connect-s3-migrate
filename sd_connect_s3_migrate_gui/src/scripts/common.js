@@ -27,6 +27,17 @@ export function timeout(ms) {
 }
 
 /**
+ * Return an empty bucket policy to expand with statements.
+ * @returns {object} - an empty bucket policy
+ */
+export function createEmptyPolicy() {
+  return {
+    Version: "2012-10-17",
+    Statement: [],
+  };
+}
+
+/**
  * Get a human readable size of a bucket (copied over from SD Connect codebase)
  * @param {number} val - the size to parse
  */

@@ -67,6 +67,7 @@ import {
   interruptReasons,
   migrationStages,
   timeout,
+  createEmptyPolicy,
 } from "../scripts/common";
 import {
   checkObjectManifest,
@@ -698,12 +699,6 @@ async function migrateBucketObjects(bucket) {
  * @param {string} bucket.name - the name of the bucket that is to be migrated
  */
 async function migrateBucketSharing(bucket) {
-  function createEmptyPolicy() {
-    return {
-      Version: "2012-10-17",
-      Statement: [],
-    };
-  }
   let currentPolicy;
   const isSameBucket = bucket.name === bucket.convertedName;
   const receivers = new Set();
@@ -840,6 +835,77 @@ async function migrateBucketSharing(bucket) {
   bucket.sharingMigrated = true;
 
   emit("update-migration-state", toRaw(migrateBuckets.value));
+}
+
+/**
+ * Add a bucket policy statement to preserve object access in shared buckets.
+ * @param {string} bucket - name of the bucket to add the policy to
+ */
+async function addBucketOwnerPreserveAccessPolicy(bucket) {
+  let currentPolicy;
+
+  // Step 1. Retrieve the bucket policy
+  try {
+    const command = new GetBucketPolicyCommand({ Bucket: bucket });
+    const response = await s3client.send(command);
+    if (response?.Policy) {
+      currentPolicy = JSON.parse(response.Policy);
+    }
+  } catch (e) {
+    if (e.name === "NoSuchBucket") {
+      console.error(`Error retrieving bucket ${bucket} policy: bucket does not exist`);
+      // Do not throw if the bucket is a segments bucket
+      if (!(bucket.match("_segments"))) throw e;
+    } else if (e.name === "InvalidBucketName") {
+      console.error("Cannot retrieve bucket policy for a bucket not accessible through s3.");
+      console.error("This should not prevent successful migration.");
+      console.error(`Incompatible bucket name is ${bucket}`);
+      return;
+    } else {
+      console.error(`Bucket policy for ${bucket} cannot be retrieved: ${e?.name}`);
+    }
+  }
+
+  // Add the preservation statement to policy if it doesn't yet exist
+  let policy;
+  if (!currentPolicy) {
+    policy = createEmptyPolicy();
+  } else {
+    policy = currentPolicy;
+  }
+  if (
+    policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")
+    && policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")?.Principal?.AWS.match(props.project.id)
+  ) {
+    // Owner access is already preserved
+    return;
+  }
+  if (
+    policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")
+    && !(policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")?.Principal?.AWS.match(props.project.id))
+  ) {
+    // Owner access preserved by an incorrect project, error and clean
+    console.error(`Bucket ${bucket.name} owner access has already been preserved with another project.`);
+    console.error(`Preserver project is ${policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")?.Principal?.AWS}`);
+    console.error("The violating preservation statement will be revoked.");
+    console.error(policy.Statement.splice(policy.Statement.findIndex((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess"), 1));
+  }
+  policy.Statement.push({
+    Sid: "GrantSDConnectPreserveOwnerAccess",
+    Effect: "Allow",
+    Principal: {
+        AWS: `arn:aws:iam::${project.id}:root`,
+    },
+    "Action": [
+        "s3:*",
+    ],
+    "Resource": [
+        `arn:aws:s3:::${bucket}`,
+        `arn:aws:s3:::${bucket}`,
+    ],
+  });
+
+  await putBucketPolicy(bucket, policy);
 }
 
 /**
@@ -1019,6 +1085,18 @@ async function beginMigration() {
     }
 
     currentStage.value = migrationStages.sharing;
+
+    // Ensure bucket access for copying and reading
+    try {
+      // We do not care about the new buckets, only the existing one
+      await addBucketOwnerPreserveAccessPolicy(bucket.name);
+      // Implicitly try fixing the segments bucket as well
+      await addBucketOwnerPreserveAccessPolicy(`${bucket.name}_segments`);
+    } catch (e) {
+      console.error("Failed to access existing bucket for owner access preservation. Reason/traceback:");
+      console.error(e);
+      emit("error", interruptReasons.migrationError);
+    }
 
     // Migrate bucket sharing
     try {
