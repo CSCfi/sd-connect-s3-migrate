@@ -96,15 +96,12 @@ export async function refreshScopedToken() {
 export async function ensureValidScopedToken(token) {
   // Check the token validity via HEAD request to the project endpoint
   let projectURL = new URL(`${object_storage_endpoint}`);
-  const resp = await fetch(
-    projectURL,
-    {
-      method: "HEAD",
-      headers: {
-        "X-Auth-Token": token,
-      },
+  const resp = await fetch(projectURL, {
+    method: "HEAD",
+    headers: {
+      "X-Auth-Token": token,
     },
-  );
+  });
 
   // If the token has been expired return a new token
   if (resp.status == 401) {
