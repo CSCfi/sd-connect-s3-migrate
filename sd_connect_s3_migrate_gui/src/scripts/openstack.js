@@ -6,9 +6,18 @@ import { devConsole } from "../renderer";
 let object_storage_endpoint = "";
 let userId = "";
 
+// Cache for the username and password to allow refreshing the token
+let _c_username;
+let _c_password;
+let _c_selected_project;
+
 // Login using username and password
 export async function loginWithUserpass(username, password) {
   let unscoped = "";
+
+  // Add username and password to file internal cache
+  _c_username = username;
+  _c_password = password;
 
   const resp = await fetch(new URL("/v3/auth/tokens", await getOpenstackAuthEndpoint()), {
     method: "POST",
@@ -75,6 +84,36 @@ export async function discoverTokenProjects(token) {
   return projects;
 }
 
+// Refresh a project token
+export async function refreshScopedToken() {
+  let unscoped = await loginWithUserpass(_c_username, _c_password);
+  let scoped = await getScopedToken(unscoped, _c_selected_project);
+
+  return scoped;
+}
+
+// Validate the scoped token
+export async function ensureValidScopedToken(token) {
+  // Check the token validity via HEAD request to the project endpoint
+  let projectURL = new URL(`${object_storage_endpoint}`);
+  const resp = await fetch(
+    projectURL,
+    {
+      method: "HEAD",
+      headers: {
+        "X-Auth-Token": token,
+      },
+    },
+  );
+
+  // If the token has been expired return a new token
+  if (resp.status == 401) {
+    return await refreshScopedToken();
+  }
+
+  return token;
+}
+
 // Retrieve a scoped project token
 export async function getScopedToken(token, project) {
   let scoped = "";
@@ -107,6 +146,8 @@ export async function getScopedToken(token, project) {
   }
 
   scoped = resp.headers.get("X-Subject-Token");
+
+  _c_selected_project = project;
 
   // Cache the endpoint for object storage
   let login_meta = await resp.json();
