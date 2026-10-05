@@ -450,6 +450,9 @@ async def preserve_bucket_owner_access(
             # We don't concern ourselves with error 400, as these buckets will
             # get migrated conventionally
             return
+    except botocore.exceptions.ValidationError:
+        # Bucket name validation checks as well
+        return
 
     # Check if the old policy already contains the access preservation
     for statement in policy["Statement"]:
@@ -1009,6 +1012,23 @@ async def initialize_conversion(
             aws_secret_access_key=session["ec2_secret_key"],
         ) as s3:
             session["s3_client"] = s3
+
+            # Ensure bucket access when using s3
+            try:
+                click.echo(f"Preserving access for bucket {migration_bucket['name']}")
+                await preserve_bucket_owner_access(
+                    tmp_opts, session, migration_bucket["name"]
+                )
+                await preserve_bucket_owner_access(
+                    tmp_opts, session, f"{migration_bucket['name']}_segments"
+                )
+            except Exception as e:
+                click.echo(
+                    f"Failed to migrate bucket {migration_bucket['name']}. Traceback: ",
+                    err=True,
+                )
+                click.echo(e, err=True)
+                continue
 
             # Migrate bucket objects
             # Check if source bucket is accessible with s3
