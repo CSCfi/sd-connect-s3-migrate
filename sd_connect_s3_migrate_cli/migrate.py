@@ -596,7 +596,7 @@ async def initialize_conversion_client_wrapper(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
         ),
         timeout=aiohttp.ClientTimeout(
-            total=(3600 * 8), # Allow request to run for 8 hours
+            total=(3600 * 8),  # Allow request to run for 8 hours
             connect=240,
             sock_connect=60,
             sock_read=600,
@@ -763,6 +763,35 @@ async def prepare_migration_entry(
         migration_entry["conversionNeed"] = int(bucket["name"] != converted_name)
 
         return migration_entry
+
+
+def render_table_headers():
+    """Render the report table headers."""
+    name_before_header: str = "Name before"
+    name_after_header: str = "Name after"
+    size_before_header: str = "Size before"
+    size_after_header: str = "Size after"
+    items_before_header: str = "Items before"
+    items_after_header: str = "Items after"
+    return f"{name_before_header:>63.63s} {name_after_header:>63.63s} {size_before_header:>8.8s} {size_after_header:>8.8s} {items_before_header:>8.8s} {items_after_header:>8.8s}"
+
+
+def render_table_row(migration_bucket: sd_connect_s3_migrate_cli.types.MigrationEntry):
+    """Render a single table row of the migration report table."""
+    return f"{migration_bucket['name']:>63.63s} {migration_bucket['convertedName']:>63.63s} {format_human_readable_size(migration_bucket['bytes']):>8.8s} {format_human_readable_size(migration_bucket['bytesDone']):>8.8s} {migration_bucket['totalObjects']:>8.8s} {migration_bucket['totalObjectsDone']:>8.8s}"
+
+
+def print_out_migration_results(
+    migration: sd_connect_s3_migrate_cli.types.MigrationBucketList,
+):
+    """Print the migration report in a human readable table."""
+    table_rows = []
+    table_rows.append(render_table_headers())
+    for migration_bucket in migration:
+        table_rows.append(render_table_row(migration_bucket))
+
+    for table_row in table_rows:
+        print(table_row)
 
 
 async def initialize_conversion(
@@ -1200,6 +1229,8 @@ async def initialize_conversion(
         )
     } of storage space."""
     )
+
+    print_out_migration_results(migration)
 
     ret = await sd_connect_s3_migrate_cli.delete.clean_up_migration(
         lock_util_session,
