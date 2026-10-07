@@ -7,10 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.1] - 2026-10-07
+
 ### Fixed
 
+- (users) migration state filename containing illegal characters for windows
 - (users) hardware migration fails for objects uploaded to a shared bucket by a non-owner project
 - hardware migration fails for objects uploaded to a shared bucket by a non-owner project
+
+### Added
+
+- (users) cli migration tool logging console output to file "migration-logfile-cli.log" automatically
 
 ## [2026.10.0] - 2026-10-01
 
@@ -300,7 +307,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.0...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.1...HEAD
+[2026.10.1]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.0...2026.10.1
 [2026.10.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.6...2026.10.0
 [2026.9.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.5...2026.9.6
 [2026.9.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.4...2026.9.5
