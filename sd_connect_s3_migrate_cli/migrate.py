@@ -1,5 +1,6 @@
 """Main migration script."""
 
+import copy
 import datetime
 import json
 import os
@@ -454,42 +455,55 @@ async def preserve_bucket_owner_access(
         # Bucket name validation checks as well
         return
 
+    old_policy = copy.deepcopy(policy)
+
     # Check if the old policy already contains the access preservation
-    for statement in policy["Statement"]:
-        if (
+    def check_statement(
+        statement: sd_lock_utility.types.AWSBucketPolicyStatement, project_id: str
+    ) -> bool:
+        """Check if the statement should be kept."""
+        return not (
             statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
-            and session["openstack_project_id"] in statement["Principal"]["AWS"]
-        ):
-            return
-        elif (
-            statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
-            and session["openstack_project_id"] not in statement["Principal"]["AWS"]
-        ):
-            # Some other project is for some reason preserved under the reserved Sid.
-            # We'll revoke this access as incorrect.
-            policy["Statement"].remove(statement)
+            and project_id not in statement["Principal"]["AWS"]
+        )
 
-    # Add the preservation policy to the statement
-    policy["Statement"].append(
-        {
-            "Sid": "GrantSDConnectPreserveOwnerAccess",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": f"arn:aws:iam::{session['openstack_project_id']}:root",
-            },
-            "Action": [
-                "s3:*",
-            ],
-            "Resource": [
-                f"arn:aws:s3:::{bucket}",
-                f"arn:aws:s3:::{bucket}/*",
-            ],
-        }
-    )
+    # Filter out non-conforming preserve statements (owned by wrong project)
+    policy["Statement"] = [
+        statement
+        for statement in policy["Statement"]
+        if check_statement(statement, session["openstack_project_id"])
+    ]
+    # Only add the owner access preservation if statement doesn't already exist
+    if f"arn:aws:iam::{session['openstack_project_id']}:root" not in {
+        statement["Principal"]["AWS"]
+        for statement in policy["Statement"]
+        if statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
+    }:
+        # Add the preservation policy to the statement
+        policy["Statement"].append(
+            {
+                "Sid": "GrantSDConnectPreserveOwnerAccess",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": f"arn:aws:iam::{session['openstack_project_id']}:root",
+                },
+                "Action": [
+                    "s3:*",
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{bucket}",
+                    f"arn:aws:s3:::{bucket}/*",
+                ],
+            }
+        )
 
-    # Not catching exceptions, as accessing bucket should not be able to fail
-    # at this point of execution
-    await sd_lock_utility.s3_client.s3_add_bucket_policy(opts, session, bucket, policy)
+    # Update the policy if it has changed
+    if policy != old_policy:
+        # Not catching exceptions, as accessing bucket should not be able to fail
+        # at this point of execution
+        await sd_lock_utility.s3_client.s3_add_bucket_policy(
+            opts, session, bucket, policy
+        )
 
 
 async def migrate_shares_db(
