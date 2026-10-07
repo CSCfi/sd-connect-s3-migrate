@@ -863,6 +863,7 @@ async function addBucketOwnerPreserveAccessPolicy(bucket) {
       return;
     } else {
       console.error(`Bucket policy for ${bucket} cannot be retrieved: ${e?.name}`);
+      console.error("If the bucket was previously shared on SD Connect v3 it will likely need re-sharing.");
     }
   }
 
@@ -1102,6 +1103,7 @@ async function beginMigration() {
       console.error("Failed to access existing bucket for owner access preservation. Reason/traceback:");
       console.error(e);
       emit("error", interruptReasons.migrationError);
+      return;
     }
 
     // Migrate bucket sharing
