@@ -855,7 +855,7 @@ async function addBucketOwnerPreserveAccessPolicy(bucket) {
     if (e.name === "NoSuchBucket") {
       console.error(`Error retrieving bucket ${bucket} policy: bucket does not exist`);
       // Do not throw if the bucket is a segments bucket
-      if (!bucket.match("_segments")) throw e;
+      if (!bucket.endswith("_segments")) throw e;
     } else if (e.name === "InvalidBucketName") {
       console.error("Cannot retrieve bucket policy for a bucket not accessible through s3.");
       console.error("This should not prevent successful migration.");
@@ -889,7 +889,7 @@ async function addBucketOwnerPreserveAccessPolicy(bucket) {
     )
   ) {
     // Owner access preserved by an incorrect project, error and clean
-    console.error(`Bucket ${bucket.name} owner access has already been preserved with another project.`);
+    console.error(`Bucket ${bucket} owner access has already been preserved with another project.`);
     console.error(
       `Preserver project is ${policy.Statement.find((statement) => statement?.Sid === "GrantSDConnectPreserveOwnerAccess")?.Principal?.AWS}`,
     );

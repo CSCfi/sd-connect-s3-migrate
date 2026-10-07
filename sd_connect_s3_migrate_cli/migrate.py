@@ -450,7 +450,7 @@ async def preserve_bucket_owner_access(
             # We don't concern ourselves with error 400, as these buckets will
             # get migrated conventionally
             return
-    except botocore.exceptions.ValidationError:
+    except botocore.exceptions.ParamValidationError:
         # Bucket name validation checks as well
         return
 
