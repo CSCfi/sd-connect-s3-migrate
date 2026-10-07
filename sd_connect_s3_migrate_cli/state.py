@@ -62,7 +62,7 @@ def cancel_migration(path: str):
     try:
         os.rename(
             f"{path}/{CURRENT_STATE_NAME}",
-            f"{path}/migration-state-canceled-{datetime.datetime.now().isoformat()}.json",
+            f"{path}/migration-state-canceled-{datetime.datetime.now().isoformat().replace(":", "-")}.json",
         )
     except OSError as e:
         click.echo("Failed to rename the canceled migration state.", err=True)
@@ -72,7 +72,7 @@ def cancel_migration(path: str):
 def finish_migration(path: str) -> str:
     """Finish the ongoing migration state."""
     finished_path: str = (
-        f"{path}/migration-state-finished-{datetime.datetime.now().isoformat()}.json"
+        f"{path}/migration-state-finished-{datetime.datetime.now().isoformat().replace(":", "-")}.json"
     )
 
     try:

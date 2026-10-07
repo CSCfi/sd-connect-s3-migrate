@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import re
+import sys
 import typing
 import uuid
 
@@ -28,6 +29,7 @@ import tqdm
 import sd_connect_s3_migrate_cli.delete
 import sd_connect_s3_migrate_cli.select
 import sd_connect_s3_migrate_cli.state
+import sd_connect_s3_migrate_cli.streams
 import sd_connect_s3_migrate_cli.types
 
 DEBUG_MODE = bool(os.environ.get("SD_CONNECT_S3_MIGRATE_DEBUG", False))
@@ -338,6 +340,7 @@ async def wrap_object_copy(
         unit_scale=True,
         unit_divisor=1024,
         leave=False,
+        file=sd_connect_s3_migrate_cli.streams.get_terminal(sys.stderr),
     )
 
     upload_id: str = ""
@@ -774,6 +777,10 @@ async def initialize_conversion(
 
     # Clear the auth url
     lock_util_session["openstack_auth_url"] = ""
+
+    click.echo(
+        f"Using {sd_connect_s3_migrate_cli.__name__} version {sd_connect_s3_migrate_cli.__version__}"
+    )
 
     # Handle the possible previous migration
     previous_state: sd_connect_s3_migrate_cli.types.MigrationState = (

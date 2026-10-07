@@ -3,10 +3,13 @@
 import asyncio
 import os
 import sys
+import traceback
+import typing
 
 import click
 
 import sd_connect_s3_migrate_cli.migrate
+import sd_connect_s3_migrate_cli.streams
 
 
 @click.command()
@@ -31,17 +34,39 @@ def convert(
     dry_run: bool,
 ):
     """Convert project resources into an S3 compatible form."""
-    try:
-        ret = asyncio.run(
-            sd_connect_s3_migrate_cli.migrate.initialize_conversion_client_wrapper(
-                username,
-                keystone_host,
-                data_dir,
-                dry_run,
-            )
+    # addional file logging
+    os.makedirs(data_dir, exist_ok=True)
+    logfile = os.path.join(data_dir, "migration-logfile-cli.log")
+    with open(logfile, "a", encoding="utf-8") as f:
+        orig_stdout, orig_stderr = sys.stdout, sys.stderr
+        sys.stdout = typing.cast(
+            typing.TextIO, sd_connect_s3_migrate_cli.streams.Tee("[info] ", sys.stdout, f)
         )
-    except KeyboardInterrupt:
-        ret = 0
+        sys.stderr = typing.cast(
+            typing.TextIO,
+            sd_connect_s3_migrate_cli.streams.Tee("[error] ", sys.stderr, f),
+        )
+
+        try:
+            ret = asyncio.run(
+                sd_connect_s3_migrate_cli.migrate.initialize_conversion_client_wrapper(
+                    username,
+                    keystone_host,
+                    data_dir,
+                    dry_run,
+                )
+            )
+        except KeyboardInterrupt:
+            ret = 0
+        except Exception:
+            # Make sure traceback is captured in logfile
+            traceback.print_exc(file=f)
+            f.flush()
+            raise
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.stdout, sys.stderr = orig_stdout, orig_stderr
 
     sys.exit(ret)
 

@@ -96,10 +96,11 @@ async function loadMigrationStateHandler() {
  */
 async function clearMigrationStateHandler() {
   try {
-    const t = new Date();
     // Rename the existing state if it exists when the user cancels the resume.
     // We'll keep the old versions with a date stamp attached.
-    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${t.toISOString()}.json`);
+    const t = new Date();
+    const timestamp = t.toISOString().replaceAll(":", "-");
+    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-canceled-${timestamp}.json`);
     console.log("Cleared migration state.");
   } catch (e) {
     console.error("Failed to clear migration state:");
@@ -116,7 +117,8 @@ async function finishMigrationStateHandler() {
     // Rename the current state once the migration is finished.
     // We'll keep the old versions with a date stamp attached.
     const t = new Date();
-    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-finished-${t.toISOString()}.json`);
+    const timestamp = t.toISOString().replaceAll(":", "-");
+    await fs.rename(STATE_FILE_PATH, `${STATE_FILE_PATH.replaceAll(".json", "")}-finished-${timestamp}.json`);
     console.log("Renamed finished migration state.");
   } catch (e) {
     console.error("Failed to rename finished migration state:");
