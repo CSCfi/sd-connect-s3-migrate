@@ -71,6 +71,7 @@ import {
 } from "../scripts/common";
 import {
   checkObjectManifest,
+  ensureValidScopedToken,
   getBucketACLs,
   getObject,
   getObjectMeta,
@@ -104,6 +105,8 @@ const emit = defineEmits(["buckets-migrated", "update-migration-state", "error"]
 
 const bucketSuffix = "-conv";
 const currentStage = ref(migrationStages.starting);
+
+let cachedToken = scopedToken;
 
 /*
 Migration process object definition
@@ -215,6 +218,19 @@ function convertBucketName(bucket, addRandomisedSuffix = false) {
     }
     return `${slug}${suffix}`;
   }
+}
+
+/**
+ * Verify that the Openstack scoped token is still valid
+ * @returns {string} - a valid token to access Openstack
+ */
+async function getTokenFromCache() {
+  cachedToken = await ensureValidScopedToken(cachedToken);
+  if (!cachedToken) {
+    emit("error", interruptReasons.apiKeyError);
+    return;
+  }
+  return cachedToken;
 }
 
 /**
@@ -353,7 +369,7 @@ async function multipartCopyObject(convertedBucket, key, manifest) {
 
   try {
     // Retrieve a list of the current object segments
-    segments = await getObjects(scopedToken, segment_bucket, segment_prefix);
+    segments = await getObjects(await getTokenFromCache(), segment_bucket, segment_prefix);
 
     // Copy the segments as multipart parts
     const startMultipart = new CreateMultipartUploadCommand({
@@ -434,7 +450,7 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
   // If the object is smaller than 200 MiB, copy it as a single object
   if (size < 200 * 1024 * 1024) {
     console.log(`Copying ${key} as one chunk.`);
-    let object = await getObject(scopedToken, bucket, key);
+    let object = await getObject(await getTokenFromCache(), bucket, key);
 
     // Calculate the object checksum using sha256 (no native md5 in browser)
     const hashSha256Buffer = await window.crypto.subtle.digest("SHA-256", object);
@@ -481,12 +497,12 @@ async function conventionalCopyObject(bucket, convertedBucket, key, size) {
       console.log(`Getting the next part of object ${key}`);
       let object;
       try {
-        object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+        object = await getObject(await getTokenFromCache(), bucket, key, i, i + 100 * 1024 * 1024 - 1);
       } catch (e) {
         console.error(`Object ${key} fetch failed:`);
         console.error(e);
         console.warn("Retrying object fetch.");
-        object = await getObject(scopedToken, bucket, key, i, i + 100 * 1024 * 1024 - 1);
+        object = await getObject(await getTokenFromCache(), bucket, key, i, i + 100 * 1024 * 1024 - 1);
       }
 
       // Calculate the object checksum using sha256 (no native md5 in browser)
@@ -602,7 +618,7 @@ async function migrateBucketObjects(bucket) {
     // If the bucket name changes we need to copy the object
     if (bucket.name != bucket.convertedName) copyNeeded = true;
     // If the object is segmented we need to copy the object
-    let manifest = await checkObjectManifest(scopedToken, bucket.name, object.key);
+    let manifest = await checkObjectManifest(await getTokenFromCache(), bucket.name, object.key);
     if (manifest) {
       copyNeeded = true;
       object.manifestBackup = manifest;
@@ -640,7 +656,7 @@ async function migrateBucketObjects(bucket) {
       } catch {
         // If the object is inaccessible using S3 API, copy conventionally
         console.warn("Copying the object conventionally");
-        const objectMeta = await getObjectMeta(scopedToken, bucket.name, object.key);
+        const objectMeta = await getObjectMeta(await getTokenFromCache(), bucket.name, object.key);
         const conventionalCopyParts = await conventionalCopyObject(
           bucket.name,
           bucket.convertedName,
@@ -666,7 +682,7 @@ async function migrateBucketObjects(bucket) {
       console.error(e);
       // In case we fail migration, and the bucket name doesn't change, revert to manifest
       if (object.manifestBackup && bucket.name === bucket.convertedName) {
-        await putManifestObject(scopedToken, bucket.name, object.key, object.manifestBackup);
+        await putManifestObject(await getTokenFromCache(), bucket.name, object.key, object.manifestBackup);
         // bytesDone or totalObjectsDone not increased, user will see mismatch
       }
     }
@@ -719,7 +735,7 @@ async function migrateBucketSharing(bucket) {
     }
   }
   // Step 2. Retrieve the bucket ACLs
-  const ACLs = await getBucketACLs(scopedToken, bucket.name);
+  const ACLs = await getBucketACLs(await getTokenFromCache(), bucket.name);
 
   /*
     Case 1. No existing policy (e.g. incompatible buckets or not shared with s3)
@@ -1039,7 +1055,7 @@ async function beginMigration() {
     for (const bucket of migrateBuckets.value) {
       // Retrieve the list of bucket objects
       try {
-        let objects = await getObjects(scopedToken, bucket.name);
+        let objects = await getObjects(await getTokenFromCache(), bucket.name);
         // Format the object listing according to our requirements
         bucket.objects = objects.map((object) => {
           return {

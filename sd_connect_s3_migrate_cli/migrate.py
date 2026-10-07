@@ -206,7 +206,7 @@ async def copy_multipart_part_streaming(
             "UploadId": upload_id,
             # "ChecksumMD5": migration_object_part["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
@@ -259,7 +259,7 @@ async def copy_object_streaming(
             "Key": migration_object["key"],
             # "ContentMD5": migration_object["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
@@ -591,6 +591,12 @@ async def initialize_conversion_client_wrapper(
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
+        ),
+        timeout=aiohttp.ClientTimeout(
+            total=(3600 * 8), # Allow request to run for 8 hours
+            connect=240,
+            sock_connect=60,
+            sock_read=600,
         ),
     ) as client:
         lock_util_session["client"] = client
