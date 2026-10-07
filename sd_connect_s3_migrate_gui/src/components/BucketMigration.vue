@@ -227,7 +227,7 @@ function convertBucketName(bucket, addRandomisedSuffix = false) {
 async function getTokenFromCache() {
   cachedToken = await ensureValidScopedToken(cachedToken);
   if (!cachedToken) {
-    emit("error", interruptReasons.migrationError);
+    emit("error", interruptReasons.apiKeyError);
     return;
   }
   return cachedToken;
