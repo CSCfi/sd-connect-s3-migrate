@@ -773,25 +773,48 @@ def render_table_headers():
     size_after_header: str = "Size after"
     items_before_header: str = "Items before"
     items_after_header: str = "Items after"
-    return f"{name_before_header:>63.63s} {name_after_header:>63.63s} {size_before_header:>8.8s} {size_after_header:>8.8s} {items_before_header:>8.8s} {items_after_header:>8.8s}"
+    return f"""{
+        name_before_header:>63.63s
+    } {
+        name_after_header:>63.63s
+    } {
+        size_before_header:>11.11s
+    } {
+        size_after_header:>10.10s
+    } {
+        items_before_header:>12.12s
+    } {
+        items_after_header:>11.11s
+    }"""
 
 
 def render_table_row(migration_bucket: sd_connect_s3_migrate_cli.types.MigrationEntry):
     """Render a single table row of the migration report table."""
-    return f"{migration_bucket['name']:>63.63s} {migration_bucket['convertedName']:>63.63s} {format_human_readable_size(migration_bucket['bytes']):>8.8s} {format_human_readable_size(migration_bucket['bytesDone']):>8.8s} {migration_bucket['totalObjects']:>8.8s} {migration_bucket['totalObjectsDone']:>8.8s}"
+    return f"""{
+        migration_bucket['name']:>63.63s
+    } {
+        migration_bucket['convertedName']:>63.63s
+    } {
+        format_human_readable_size(migration_bucket['bytes']):>11.11s
+    } {
+        format_human_readable_size(migration_bucket['bytesDone']):>10.10s
+    } {
+        migration_bucket['totalObjects']:>12d
+    } {
+        migration_bucket['totalObjectsDone']:>11d
+    }"""
 
 
 def print_out_migration_results(
     migration: sd_connect_s3_migrate_cli.types.MigrationBucketList,
 ):
     """Print the migration report in a human readable table."""
-    table_rows = []
-    table_rows.append(render_table_headers())
-    for migration_bucket in migration:
-        table_rows.append(render_table_row(migration_bucket))
-
-    for table_row in table_rows:
-        print(table_row)
+    [
+        print(row)
+        for row in [render_table_headers()]
+        + ["#" + "-" * 173 + "#"]
+        + [render_table_row(migration_bucket) for migration_bucket in migration]
+    ]
 
 
 async def initialize_conversion(
