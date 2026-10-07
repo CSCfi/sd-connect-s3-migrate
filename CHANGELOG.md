@@ -7,6 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- (users) hardware migration fails for objects uploaded to a shared bucket by a non-owner project
+- hardware migration fails for objects uploaded to a shared bucket by a non-owner project
+
 ## [2026.10.0] - 2026-10-01
 
 ### Fixed
