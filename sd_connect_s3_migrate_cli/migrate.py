@@ -1,5 +1,6 @@
 """Main migration script."""
 
+import copy
 import datetime
 import json
 import os
@@ -205,7 +206,7 @@ async def copy_multipart_part_streaming(
             "UploadId": upload_id,
             # "ChecksumMD5": migration_object_part["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
@@ -258,7 +259,7 @@ async def copy_object_streaming(
             "Key": migration_object["key"],
             # "ContentMD5": migration_object["ETag"],
         },
-        ExpiresIn=3600,
+        ExpiresIn=(3600 * 4),  # Expire the URL in 4 hours
     )
 
     async with session["client"].get(
@@ -434,6 +435,77 @@ def handle_invalid_token(
     )
 
 
+async def preserve_bucket_owner_access(
+    opts: sd_lock_utility.types.SDCommandBaseOptions,
+    session: sd_lock_utility.types.SDAPISession,
+    bucket: str,
+):
+    """Ensure that the bucket access preservation policy exists."""
+    # Retrieve the old bucket policy
+    try:
+        policy: sd_lock_utility.types.AWSBucketPolicy = (
+            await sd_lock_utility.s3_client.s3_get_bucket_policy(opts, session, bucket)
+        )
+    except botocore.exceptions.ClientError as e:
+        if e.response["ResponseMetadata"]["HTTPStatusCode"] == 400:
+            # We don't concern ourselves with error 400, as these buckets will
+            # get migrated conventionally
+            return
+    except botocore.exceptions.ParamValidationError:
+        # Bucket name validation checks as well
+        return
+
+    old_policy = copy.deepcopy(policy)
+
+    # Check if the old policy already contains the access preservation
+    def check_statement(
+        statement: sd_lock_utility.types.AWSBucketPolicyStatement, project_id: str
+    ) -> bool:
+        """Check if the statement should be kept."""
+        return not (
+            statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
+            and project_id not in statement["Principal"]["AWS"]
+        )
+
+    # Filter out non-conforming preserve statements (owned by wrong project)
+    policy["Statement"] = [
+        statement
+        for statement in policy["Statement"]
+        if check_statement(statement, session["openstack_project_id"])
+    ]
+    # Only add the owner access preservation if statement doesn't already exist
+    if f"arn:aws:iam::{session['openstack_project_id']}:root" not in {
+        statement["Principal"]["AWS"]
+        for statement in policy["Statement"]
+        if statement["Sid"] == "GrantSDConnectPreserveOwnerAccess"
+    }:
+        # Add the preservation policy to the statement
+        policy["Statement"].append(
+            {
+                "Sid": "GrantSDConnectPreserveOwnerAccess",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": f"arn:aws:iam::{session['openstack_project_id']}:root",
+                },
+                "Action": [
+                    "s3:*",
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{bucket}",
+                    f"arn:aws:s3:::{bucket}/*",
+                ],
+            }
+        )
+
+    # Update the policy if it has changed
+    if policy != old_policy:
+        # Not catching exceptions, as accessing bucket should not be able to fail
+        # at this point of execution
+        await sd_lock_utility.s3_client.s3_add_bucket_policy(
+            opts, session, bucket, policy
+        )
+
+
 async def migrate_shares_db(
     session: sd_lock_utility.types.SDAPISession,
     bucket: str,
@@ -519,6 +591,12 @@ async def initialize_conversion_client_wrapper(
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
+        ),
+        timeout=aiohttp.ClientTimeout(
+            total=(3600 * 8), # Allow request to run for 8 hours
+            connect=240,
+            sock_connect=60,
+            sock_read=600,
         ),
     ) as client:
         lock_util_session["client"] = client
@@ -954,6 +1032,23 @@ async def initialize_conversion(
             aws_secret_access_key=session["ec2_secret_key"],
         ) as s3:
             session["s3_client"] = s3
+
+            # Ensure bucket access when using s3
+            try:
+                click.echo(f"Preserving access for bucket {migration_bucket['name']}")
+                await preserve_bucket_owner_access(
+                    tmp_opts, session, migration_bucket["name"]
+                )
+                await preserve_bucket_owner_access(
+                    tmp_opts, session, f"{migration_bucket['name']}_segments"
+                )
+            except Exception as e:
+                click.echo(
+                    f"Failed to migrate bucket {migration_bucket['name']}. Traceback: ",
+                    err=True,
+                )
+                click.echo(e, err=True)
+                continue
 
             # Migrate bucket objects
             # Check if source bucket is accessible with s3
