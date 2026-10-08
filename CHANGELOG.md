@@ -7,9 +7,15 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.2] - 2026-10-08
+
 ### Added
 
 - (users) migration CLI now prints out a migration report when migration finishes, similarly to the GUI
+
+### Fixed
+
+- (users) binary failing to migrate bucket with ääkköset
 
 ## [2026.10.1] - 2026-10-07
 
@@ -311,7 +317,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.1...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.2...HEAD
+[2026.10.2]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.1...2026.10.2
 [2026.10.1]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.0...2026.10.1
 [2026.10.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.6...2026.10.0
 [2026.9.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.9.5...2026.9.6
