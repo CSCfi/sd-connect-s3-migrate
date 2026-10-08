@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- (users) migration CLI now prints out a migration report when migration finishes, similarly to the GUI
+
 ## [2026.10.1] - 2026-10-07
 
 ### Fixed
