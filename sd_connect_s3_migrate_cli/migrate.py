@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import sys
 import typing
 import uuid
@@ -596,7 +597,7 @@ async def initialize_conversion_client_wrapper(
             ssl=sd_lock_utility.common.get_ssl_context(lock_util_session),
         ),
         timeout=aiohttp.ClientTimeout(
-            total=(3600 * 8), # Allow request to run for 8 hours
+            total=(3600 * 8),  # Allow request to run for 8 hours
             connect=240,
             sock_connect=60,
             sock_read=600,
@@ -763,6 +764,61 @@ async def prepare_migration_entry(
         migration_entry["conversionNeed"] = int(bucket["name"] != converted_name)
 
         return migration_entry
+
+
+def get_name_column_width() -> int:
+    """Width for each name column: split the free terminal space, capped at max_name_width."""
+    max_name_width: int = 63
+    fixed_columns_width: int = 11 + 10 + 12 + 11 + 5
+    terminal_width = shutil.get_terminal_size().columns
+    available_name_width = (terminal_width - fixed_columns_width) // 2
+    return min(max_name_width, available_name_width)
+
+
+def render_table_headers():
+    """Render the report table headers."""
+    name_before_header: str = "Name before"
+    name_after_header: str = "Name after"
+    size_before_header: str = "Size before"
+    size_after_header: str = "Size after"
+    items_before_header: str = "Items before"
+    items_after_header: str = "Items after"
+    name_width = get_name_column_width()
+    return (
+        f"{name_before_header:<{name_width}.{name_width}s} "
+        f"{name_after_header:<{name_width}.{name_width}s} "
+        f"{size_before_header:>11.11s} "
+        f"{size_after_header:>10.10s} "
+        f"{items_before_header:>12.12s} "
+        f"{items_after_header:>11.11s}"
+    )
+
+
+def render_table_row(migration_bucket: sd_connect_s3_migrate_cli.types.MigrationEntry):
+    """Render a single table row of the migration report table."""
+    name_width = get_name_column_width()
+    return (
+        f"{migration_bucket['name']:<{name_width}.{name_width}s} "
+        f"{migration_bucket['convertedName']:<{name_width}.{name_width}s} "
+        f"{format_human_readable_size(migration_bucket['bytes']):>11.11s} "
+        f"{format_human_readable_size(migration_bucket['bytesDone']):>10.10s} "
+        f"{migration_bucket['totalObjects']:>12d} "
+        f"{migration_bucket['totalObjectsDone']:>11d}"
+    )
+
+
+def print_out_migration_results(
+    migration: sd_connect_s3_migrate_cli.types.MigrationBucketList,
+):
+    """Print the migration report in a human readable table."""
+    fixed_columns_width: int = 11 + 10 + 12 + 11 + 5
+    row_width: int = get_name_column_width() * 2 + fixed_columns_width
+    [
+        print(row)
+        for row in [render_table_headers()]
+        + ["#" + "-" * (row_width - 2) + "#"]
+        + [render_table_row(migration_bucket) for migration_bucket in migration]
+    ]
 
 
 async def initialize_conversion(
@@ -1200,6 +1256,8 @@ async def initialize_conversion(
         )
     } of storage space."""
     )
+
+    print_out_migration_results(migration)
 
     ret = await sd_connect_s3_migrate_cli.delete.clean_up_migration(
         lock_util_session,
