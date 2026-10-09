@@ -1,6 +1,7 @@
 """Functionality to purge the old files after successful migration."""
 
 import hashlib
+import os
 
 import click
 import sd_lock_utility.os_client
@@ -345,6 +346,15 @@ async def delete_migrated_item(
     return deleted_item
 
 
+# Migrate CLI has two methods of verifying migrated file contents before deletion.
+# Hard verification (default option) downloads each migrated file, each original file,
+# and compares them before deleting the original file. Use this option if you cannot
+# recover the dataset you have migrated, as this option increases bandwidth usage heavily
+# and is slow. Soft verification compares the reported checksums of the file parts on
+# Allas before deletion. It will verify that the data did not change during or after
+# migration, but may not catch the case where parts of the file are missing. You should
+# use this option if you have backup of the data and prefer to save bandwidth.
+# Soft verification can be enabled with env SD_CONNECT_S3_MIGRARTE_ENABLE_SOFT_VERIFY
 async def clean_up_migration(
     session: sd_lock_utility.types.SDAPISession,
     migrations: sd_connect_s3_migrate_cli.types.MigrationBucketList,
@@ -353,31 +363,27 @@ async def clean_up_migration(
     """Clean up the redundant data after migration."""
     ret: int = 0
 
-    if click.confirm("Do you want to clean up the old files?", default=False):
-        click.echo("Cleaning up the migrated files.")
-        click.echo(
-            """\
-SD Connect S3 Migrate CLI has two methods of verifying migrated file contents
-before deletion.
-
-Hard verification downloads each migrated file, each original file, and compares
-them before deleting the original file. Use this option if you cannot recover
-the dataset you have migrated, as this option increases bandwidth usage heavily
-and is slow.
-
-Soft verification (default option) compares the reported checksums of the file parts
-on Allas before deletion. It will verify that the data did not change during or after
-migration, but may not catch the case where parts of the file are missing. You should
-use this option if you have backup of the data and prefer to save bandwidth."""
-        )
+    click.echo(
+        """\
+Your buckets have been converted to a compatible format. Ensure that the bucket
+size and item count match before and after conversion from the data table below.
+If you have questions, please contact servicedesk@csc.fi."""
+    )
+    if click.confirm(
+        "Do you want to remove the old incompatible buckets?", default=False
+    ):
+        click.echo("Removing old buckets.")
     else:
         click.echo(
-            "Not cleaning up the migrated files. You can check the migrated files from "
+            "Not cleaning up old incompatible buckets. You can check the migrated files from "
             "the migration report in the bucket later."
         )
         return ret
 
-    hard: bool = click.confirm("Use hard verification before deletion?", default=False)
+    hard: bool = (
+        os.environ.get("SD_CONNECT_S3_MIGRARTE_ENABLE_SOFT_VERIFY", "false").lower()
+        != "false"
+    )
 
     deleted_items: sd_connect_s3_migrate_cli.types.MigrationDeleteList = []
 
