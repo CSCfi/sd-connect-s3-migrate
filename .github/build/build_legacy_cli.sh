@@ -43,7 +43,9 @@ python -m PyInstaller --onefile sd_connect_s3_migrate_cli/cli.py \
   --collect-all aioboto3 \
   --collect-all aiobotocore \
   --collect-submodules boto3 \
-  --collect-submodules botocore
+  --collect-submodules botocore \
+  --collect-all anyascii \
+  --hidden-import anyascii._data
 
 echo "Build complete"
 ls -lah dist/
