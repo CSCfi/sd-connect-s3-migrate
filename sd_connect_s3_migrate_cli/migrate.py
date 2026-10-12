@@ -1088,11 +1088,14 @@ async def initialize_conversion(
         tmp_opts = init_opts(session, migration_bucket)
         await sd_lock_utility.os_client.init_s3_credentials(session)
 
+        s3_config = botocore.config.Config(read_timeout=600)
+
         async with aioboto3.Session().client(
             service_name="s3",
             endpoint_url=session["s3_endpoint_url"],
             aws_access_key_id=session["ec2_access_key"],
             aws_secret_access_key=session["ec2_secret_key"],
+            config=s3_config,
         ) as s3:
             session["s3_client"] = s3
 
