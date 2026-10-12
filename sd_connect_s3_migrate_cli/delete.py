@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import sys
 
 import click
 import sd_lock_utility.os_client
@@ -391,6 +392,7 @@ If you have questions, please contact servicedesk@csc.fi."""
         total=sum([migration["totalObjectsDone"] for migration in migrations]),
         desc="Verify and delete -",
         leave=False,
+        file=sd_connect_s3_migrate_cli.streams.get_terminal(sys.stderr),
     )
 
     for migration in migrations:

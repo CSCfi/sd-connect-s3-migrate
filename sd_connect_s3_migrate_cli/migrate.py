@@ -1137,6 +1137,7 @@ async def initialize_conversion(
             for migration_object in tqdm.tqdm(
                 migration_bucket["objects"],
                 desc=f"Concatenating files to bucket {migration_bucket['convertedName']}",
+                file=sd_connect_s3_migrate_cli.streams.get_terminal(sys.stderr),
             ):
                 if migration_object["contentDone"]:
                     continue
