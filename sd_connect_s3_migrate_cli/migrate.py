@@ -142,6 +142,7 @@ async def parse_object(
         "checksumSha256": "",
         "ETag": object["hash"],
         "multipartParts": [],
+        "isFUBAR": False,
     }
 
     # Treating an empty object as segmented
@@ -170,6 +171,60 @@ async def parse_object(
                 segment_objects,
             )
         ]
+
+    # If the object is segmented but contains no segments, treat it as a v1 object
+    # with a single bucket for objects and segments
+    if migration_object["isSegmented"] and not migration_object["multipartParts"]:
+        click.echo(
+            f"Treating object {migration_object['key']} without segments as possible v1 object."
+        )
+        v1_segment_objects = await sd_lock_utility.os_client.get_container_objects(
+            session,
+            prefix="/".join(migration_object["manifestBackup"].split("/")[1:]),
+            raw=True,
+        )
+        if v1_segment_objects:
+            click.echo(
+                f"Found segments for v1 object {migration_object['key']}, {len(v1_segment_objects)} in total."
+            )
+            migration_object["multipartParts"] = [
+                {
+                    "key": migration_object["key"],
+                    "originalKey": segment_object["name"],
+                    "checksumSha256": "",
+                    "bytes": segment_object["bytes"],
+                    "ETag": segment_object["hash"],
+                }
+                for segment_object in v1_segment_objects
+            ]
+
+    if migration_object["isSegmented"]:
+        # Verify that only the last segment is different in size compared to others
+        # Get a list of only segments before the last one (as last one is
+        # allowed to be sub 5 MiB)
+        supposedly_equisized_segments = sorted(
+            migration_object["multipartParts"],
+            key=lambda migration_object_part: migration_object_part["originalKey"].split(
+                "/"
+            )[-1],
+        )[:-1]
+        if len(
+            tuple({segment["bytes"] for segment in supposedly_equisized_segments})
+        ) > 1 or len(
+            list(
+                filter(
+                    lambda segment: segment["bytes"] < 5 * 1024 * 1024,
+                    supposedly_equisized_segments,
+                )
+            )
+        ):
+            click.echo(
+                f"Object {object['name']} contains segments of differing size, "
+                + "or segments smaller than 5 MiB before the final segment."
+                + "The object will be sliced to new segments.",
+                err=True,
+            )
+            migration_object["isFUBAR"] = True
 
     return migration_object
 
@@ -347,7 +402,11 @@ async def wrap_object_copy(
     upload_id: str = ""
 
     try:
-        if migration_object["isSegmented"]:
+        if migration_object["isFUBAR"]:
+            # TODO: handle malformed segments separately later
+            # Skip for now to prevent breaking the object
+            migration_object["contentDone"] = False
+        elif migration_object["isSegmented"]:
             try:
                 mpu = await session["s3_client"].create_multipart_upload(
                     Bucket=opts["to_bucket"], Key=migration_object["key"]
@@ -393,8 +452,12 @@ async def wrap_object_copy(
                         },
                     )
                     migration_object["contentDone"] = True
-                except Exception:
+                except Exception as e:
                     # In case there's a failure, abort the upload
+                    click.echo(
+                        f"Failed to migrate object {migration_object['key']}", err=True
+                    )
+                    click.echo(f"Got exception {e}", err=True)
                     await session["s3_client"].abort_multipart_upload(
                         Bucket=opts["to_bucket"],
                         Key=migration_object["key"],
@@ -717,6 +780,13 @@ async def prepare_migration_entry(
         session, raw=True
     )
     segment_objects: list[sd_lock_utility.types.OpenstackObjectListingItem] = []
+
+    # Filter out the possible segment objects from v1 file format
+    bucket_objects = [
+        bucket_object
+        for bucket_object in bucket_objects
+        if not bucket_object["name"].startswith(".segments/")
+    ]
 
     bucket_bytes = bucket["bytes"]
     if segment_bucket := list(
