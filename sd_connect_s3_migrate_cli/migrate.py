@@ -455,6 +455,9 @@ async def preserve_bucket_owner_access(
             # We don't concern ourselves with error 400, as these buckets will
             # get migrated conventionally
             return
+        if e.response["Error"]["Code"] == "NoSuchBucket":
+            # Bucket (e.g. segments) doesn't exist
+            return
     except botocore.exceptions.ParamValidationError:
         # Bucket name validation checks as well
         return
