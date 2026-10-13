@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Extend s3 client read timeout to alleviate read timeout errors (#119)
+
 ## [2026.10.4] - 2026-10-09
 
 ### Fixed
