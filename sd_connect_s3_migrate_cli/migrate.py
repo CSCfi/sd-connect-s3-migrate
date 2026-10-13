@@ -403,7 +403,11 @@ async def wrap_object_copy(
                     migration_object["contentDone"] = False
         else:
             try:
-                if s3accessible:
+                if session["container"] == opts["to_bucket"]:
+                    # Not segmented, same target:
+                    # no migration needed, copy will error with invalid request
+                    t.update(migration_object["bytes"])
+                elif s3accessible:
                     await copy_object_hardware(
                         session, opts, migration_object, t, dry_run
                     )
