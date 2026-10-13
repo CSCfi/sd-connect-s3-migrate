@@ -1,7 +1,9 @@
 """Main migration script."""
 
+import asyncio
 import copy
 import datetime
+import inspect
 import json
 import os
 import re
@@ -227,6 +229,37 @@ async def parse_object(
             migration_object["isFUBAR"] = True
 
     return migration_object
+
+
+def add_retries_on_disconnect(
+    client: aiohttp.ClientSession, retries: int = 3
+) -> aiohttp.ClientSession:
+    """Patch client with retry functionality on server disconnect."""
+    original_request = client._request
+
+    # Do not retry async generators that are not intact
+    def can_resend(data: typing.Any) -> bool:
+        if inspect.isasyncgen(data):
+            return inspect.getasyncgenstate(data) == inspect.AGEN_CREATED
+        return data is None or isinstance(data, (bytes, str, dict))
+
+    async def _request(
+        method: str, url: typing.Any, **kwargs: typing.Any
+    ) -> aiohttp.ClientResponse:
+        retry = 0
+        while True:
+            try:
+                return await original_request(method, url, **kwargs)
+            except aiohttp.ServerDisconnectedError:
+                click.echo(f"Server disconnected on {method} {url}", err=True)
+                if retry == retries or not can_resend(kwargs.get("data")):
+                    raise
+                retry += 1
+                click.echo(f"Retrying ({retry}/{retries})", err=True)
+                await asyncio.sleep(retry * 0.5)
+
+    client._request = _request  # type: ignore[method-assign, assignment]
+    return client
 
 
 async def wrap_stream_progress(
@@ -673,7 +706,7 @@ async def initialize_conversion_client_wrapper(
             sock_read=600,
         ),
     ) as client:
-        lock_util_session["client"] = client
+        lock_util_session["client"] = add_retries_on_disconnect(client)
         return await initialize_conversion(
             lock_util_session,
             username,
