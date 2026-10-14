@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Fix item count and size after migration showing as 0 on v3 objects (#120)
 - progress bar handling
 - Do not attempt to preserve bucket owner access when bucket doesn't exist (#118)
 - Extend s3 client read timeout to alleviate read timeout errors (#119)
