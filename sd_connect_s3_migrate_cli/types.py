@@ -21,6 +21,7 @@ class MigrationObject(typing.TypedDict):
     headerDone: bool
     contentDone: bool
     isSegmented: bool
+    isFUBAR: bool  # If the segments are non-uniformly sized, slice manually
     manifestBackup: str
     checksumSha256: typing.NotRequired[str]
     ETag: typing.NotRequired[str]
