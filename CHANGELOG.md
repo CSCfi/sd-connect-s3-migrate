@@ -7,8 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.5] - 2026-10-14
+
 ### Fixed
 
+- (users) ServerDisconnected error on CLI should no longer cause migration to stop
 - (users) v1 object segments aren't correctly discovered, causing segments to not be migrated
 - v1 object segments aren't correctly discovered, causing segments to not be migrated
 - Fix item count and size after migration showing as 0 on v3 objects (#120)
@@ -344,7 +347,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.4...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.5...HEAD
+[2026.10.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.4...2026.10.5
 [2026.10.4]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.3...2026.10.4
 [2026.10.3]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.2...2026.10.3
 [2026.10.2]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.1...2026.10.2
