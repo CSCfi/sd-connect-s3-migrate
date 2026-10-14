@@ -402,7 +402,7 @@ async def wrap_object_copy(
     upload_id: str = ""
 
     try:
-        if migration_object["isFUBAR"]:
+        if migration_object.get("isFUBAR", ""):
             # TODO: handle malformed segments separately later
             # Skip for now to prevent breaking the object
             migration_object["contentDone"] = False
