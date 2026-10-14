@@ -9,10 +9,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- (users) v1 object segments aren't correctly discovered, causing segments to not be migrated
+- v1 object segments aren't correctly discovered, causing segments to not be migrated
 - Fix item count and size after migration showing as 0 on v3 objects (#120)
 - progress bar handling
 - Do not attempt to preserve bucket owner access when bucket doesn't exist (#118)
 - Extend s3 client read timeout to alleviate read timeout errors (#119)
+
+### Changed
+
+- (users) CLI migration tool now skips v1 files if they contain non-uniformly sized segments
+- CLI migration tool now skips v1 files if they contain non-uniformly sized segments
 
 ## [2026.10.4] - 2026-10-09
 
