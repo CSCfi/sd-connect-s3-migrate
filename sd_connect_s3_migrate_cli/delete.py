@@ -9,6 +9,7 @@ import sd_lock_utility.os_client
 import sd_lock_utility.types
 import tqdm
 
+import sd_connect_s3_migrate_cli.streams
 import sd_connect_s3_migrate_cli.types
 
 
@@ -287,6 +288,9 @@ async def delete_migrated_item(
         "deleted": False,
         "parts": [],
     }
+
+    if not object["contentDone"]:
+        return deleted_item
 
     if hard:
         # Calculate sha256 for the old object
