@@ -1200,7 +1200,7 @@ async def initialize_conversion(
             "for help with migration of these objects.",
             err=True,
         )
-        if click.confirm(
+        if not click.confirm(
             "Press enter to acknowledge the message and continue (or n to abort).",
             default=True,
         ):
