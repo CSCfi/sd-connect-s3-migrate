@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix migration failing when corresponding segments bucket doesn't exist (#124)
+
 ## [2026.10.5] - 2026-10-14
 
 ### Fixed
