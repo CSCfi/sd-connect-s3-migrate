@@ -1179,6 +1179,20 @@ async def initialize_conversion(
                 )
                 return 2
 
+    # Check if there are malformed segments that will cause errors
+    if any(obj.get("isFUBAR") for bucket in migration for obj in bucket["objects"]):
+        click.echo(
+            "Migrated buckets contain at least one file that cannot be migrated using this tool "
+            "(i.e. created using a very old version of SD Connect). Contact servicedesk@csc.fi "
+            "for help with migration of these files.",
+            err=True,
+        )
+        if not click.confirm(
+            "Press enter to acknowledge the message and continue (or n to abort).",
+            default=True,
+        ):
+            return 11
+
     # Migrate the contents of the buckets
     for migration_bucket in migration:
         if (
