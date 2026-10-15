@@ -871,7 +871,8 @@ async function addBucketOwnerPreserveAccessPolicy(bucket) {
     if (e.name === "NoSuchBucket") {
       console.error(`Error retrieving bucket ${bucket} policy: bucket does not exist`);
       // Do not throw if the bucket is a segments bucket
-      if (!bucket.endsWith("_segments")) throw e;
+      if (bucket.endsWith("_segments")) return;
+      else throw e;
     } else if (e.name === "InvalidBucketName") {
       console.error("Cannot retrieve bucket policy for a bucket not accessible through s3.");
       console.error("This should not prevent successful migration.");
