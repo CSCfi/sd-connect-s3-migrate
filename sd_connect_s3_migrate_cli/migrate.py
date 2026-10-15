@@ -1179,6 +1179,28 @@ async def initialize_conversion(
                 )
                 return 2
 
+    # Check if there are malformed segments that will cause errors
+    fubar_objects: set[bool] = set({})
+    fubar_objects.update(
+        *{
+            [
+                migration_object["isFUBAR"]
+                for migration_object in migration_object_list
+                if migration_object["isFUBAR"]
+            ]
+            for migration_object_list in {
+                migration_bucket["objects"] for migration_bucket in migration
+            }
+        }
+    )
+    if fubar_objects:
+        click.echo(
+            "Migrated buckets contain at least one object that cannot be migrated using this tool "
+            "(i.e. created using a very old version of SD Connect). Contact servicedesk@csc.fi to "
+            "for help with migration of these objects.",
+            err=True,
+        )
+
     # Migrate the contents of the buckets
     for migration_bucket in migration:
         if (
