@@ -1182,16 +1182,16 @@ async def initialize_conversion(
     # Check if there are malformed segments that will cause errors
     fubar_objects: set[bool] = set({})
     fubar_objects.update(
-        *{
+        *[
             [
                 migration_object["isFUBAR"]
                 for migration_object in migration_object_list
                 if migration_object["isFUBAR"]
             ]
-            for migration_object_list in {
+            for migration_object_list in [
                 migration_bucket["objects"] for migration_bucket in migration
-            }
-        }
+            ]
+        ]
     )
     if fubar_objects:
         click.echo(
@@ -1200,6 +1200,11 @@ async def initialize_conversion(
             "for help with migration of these objects.",
             err=True,
         )
+        if click.confirm(
+            "Press enter to acknowledge the message and continue (or n to abort).",
+            default=True,
+        ):
+            return 11
 
     # Migrate the contents of the buckets
     for migration_bucket in migration:
