@@ -135,6 +135,7 @@ The bucket level object is wrapped into a ref() to make bucket updates render co
         headerDone: bool
         contentDone: bool
         isSegmented: bool
+        isFUBAR: bool
         manifestBackup: str
       },
     ],
@@ -580,9 +581,11 @@ async function migrateBucketObjects(bucket) {
     }
 
     // Skip objects that are just SD Connect v1 segments
-    if (object.key.match(".segments")) {
-      bucket.totalObjectsDone++;
-      bucket.bytesDone += object.bytes;
+    if (object.key.match(/\.segments/)) {
+      //bucket.totalObjectsDone++;
+      //bucket.bytesDone += object.bytes;
+      console.log(`Skipping v1 segment ${object.key}.`);
+      object.isFUBAR = true;
       continue;
     }
 
@@ -622,6 +625,11 @@ async function migrateBucketObjects(bucket) {
     if (manifest) {
       copyNeeded = true;
       object.manifestBackup = manifest;
+      if (manifest.match(/\.segments/)) {
+        console.log(`Skipping potential v1 object ${object.key}.`);
+        object.isFUBAR = true;
+        continue;
+      }
     }
 
     // Skip copying the object if it need not be copied
@@ -1065,6 +1073,7 @@ async function beginMigration() {
             headerDone: false,
             contentDone: false,
             isSegmented: object.bytes == 0 ? true : false,
+            isFUBAR: false,
             manifestBackup: "",
           };
         });
