@@ -371,7 +371,7 @@ async def clean_up_migration(
     click.echo(
         """\
 Your buckets have been converted to a compatible format. Ensure that the bucket
-size and item count match before and after conversion from the data table below.
+size and item count match before and after conversion from the data table above.
 If you have questions, please contact servicedesk@csc.fi."""
     )
     if click.confirm(
