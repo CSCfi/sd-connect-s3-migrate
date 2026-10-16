@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- (users) typo
+
 ## [2026.10.6] - 2026-10-15
 
 ### Fixed
