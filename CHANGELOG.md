@@ -11,6 +11,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - (users) typo
 
+### Added
+
+- Skip migrating and deleting v1 objects in GUI (#123)
+
 ## [2026.10.6] - 2026-10-15
 
 ### Fixed
