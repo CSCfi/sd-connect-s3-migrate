@@ -149,7 +149,7 @@ onMounted(() => {
     migrateBuckets.value = oldMigrateBuckets;
   } else {
     for (const bucket of buckets) {
-      const bucketSize = bucket.segmentsBytes ?? bucket.bytes;
+      const bucketSize = (bucket.segmentsBytes || 0) + bucket.bytes;
 
       migrateBuckets.value.push({
         name: bucket.name,
