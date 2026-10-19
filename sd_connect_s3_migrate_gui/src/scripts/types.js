@@ -17,6 +17,7 @@
  * @property {boolean} headerDone - Flag if the object header has been migrated
  * @property {boolean} contentDone - Flag if the object content has been fully migrated
  * @property {boolean} isSegmented - Flag if the object is segmented or normal
+ * @property {boolean} isFUBAR - Flag if the first segment of the object is too small to migrate
  * @property {string} manifestBackup - Backup of the large object manifest string
  * @property {string} checksumSha256 - The sha1 hash of the object (optional)
  * @property {string} ETag - The md5 hash of the object (optional)

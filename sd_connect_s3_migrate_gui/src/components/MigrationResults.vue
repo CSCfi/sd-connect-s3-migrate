@@ -21,6 +21,12 @@
         </div>
       </c-row>
     </c-alert>
+    <div v-if="containsFUBAR">
+      <c-alert type="error">
+        Converted buckets contain at least one file that cannot be converted using this tool (i.e. created using a very
+        old version of SD Connect). Contact servicedesk@csc.fi for help with conversion of these files.
+      </c-alert>
+    </div>
     <div v-if="deleteSuccess === true">
       <c-alert type="success">Original incompatible buckets were deleted successfully.</c-alert>
     </div>
@@ -61,6 +67,12 @@ const showAlert = ref(true);
 const deleteSuccess = ref();
 const deleting = ref(false);
 const errorBuckets = ref([]);
+
+const containsFUBAR = computed(() => {
+  return migratedBuckets.some((bucket) => {
+    return bucket.objects?.some((o) => o?.isFUBAR);
+  });
+});
 
 async function onDelete() {
   if (deleting.value) return;
@@ -213,6 +225,10 @@ async function verifyObjects(scopedToken, bucket, objects, s3Objects, segmentsMa
   const swiftObjectMap = new Map(swiftObjects.map((obj) => [obj.name, obj]));
 
   for (const object of objects) {
+    if (object?.isFUBAR) {
+      return false;
+    }
+
     const s3Object = s3ObjectMap.get(object.key);
     // VERIFY: migrated object exists
     if (!s3Object) {
