@@ -630,6 +630,11 @@ async function migrateBucketObjects(bucket) {
         object.isFUBAR = true;
         continue;
       }
+    } else if (!manifest && object.isSegmented) {
+      console.warn(`Segmented object ${object.key} does not have a manifest.`);
+      // We determine segmented objects by size 0
+      console.warn(`It is possible that ${object.key} is empty.`);
+      copyNeeded = true;
     }
 
     // Skip copying the object if it need not be copied
