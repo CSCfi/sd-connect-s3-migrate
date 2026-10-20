@@ -174,8 +174,7 @@ const tableData = computed(() => {
         // keep bucket object in table data to simplify selection addition/removal
         // add segments size to bucket
         bucket: {
-          value:
-            bucket.count && bucket.bytes === 0 ? { ...bucket, segmentsBytes: getSegmentsBytes(bucket.name) } : bucket,
+          value: { ...bucket, segmentsBytes: getSegmentsBytes(bucket.name) },
         },
       };
     });
