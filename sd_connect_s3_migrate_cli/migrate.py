@@ -151,7 +151,7 @@ async def parse_object(
     if object["bytes"] == 0:
         object_metadata = await get_segmented_object_metadata(session, object["name"])
         migration_object["bytes"] = object_metadata["bytes"]
-        if object_metadata["manifest"]:
+        if object_metadata.get("manifest", ""):
             migration_object["isSegmented"] = True
             migration_object["ETag"] = ""
             migration_object["manifestBackup"] = object_metadata["manifest"]
