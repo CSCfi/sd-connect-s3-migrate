@@ -259,7 +259,8 @@ async function verifyObjects(scopedToken, bucket, objects, s3Objects, segmentsMa
     }
 
     // VERIFY: segments corresponding to manifest prefix exist
-    if (object.isSegmented) {
+    // Don't flag errors on empty files
+    if (object.isSegmented && object.bytes > 0) {
       const segmentsPrefix = getSegmentsPrefix(object.manifestBackup);
       if (!segmentsPrefix) {
         console.error(`Segmented object ${object.key} is missing a manifest backup`);
@@ -304,8 +305,8 @@ async function deleteObjects(scopedToken, bucket, objects, segmentsMap) {
       console.log(`Object ${object.key} will not be deleted: it is the target object`);
     }
 
-    // Delete object segments
-    if (object.isSegmented) {
+    // Delete object segments if file has content
+    if (object.isSegmented && object.bytes > 0) {
       const segmentsPrefix = getSegmentsPrefix(object.manifestBackup);
       const foundSegments = segmentsMap.get(segmentsPrefix);
       console.log(`Found ${foundSegments.length} segment(s) with prefix ${segmentsPrefix} to delete`);
