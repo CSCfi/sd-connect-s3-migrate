@@ -10,13 +10,13 @@ include:
 lint-cli:
   stage: lint
   tags:
-    - sds
+    - sds-test
   rules:
-  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-    changes:
-      paths:
-        - sd_connect_s3_migrate_cli/**/*
-      compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        paths:
+          - sd_connect_s3_migrate_cli/**/*
+        compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script: |
     echo "Placeholder for linting cli"
     echo "tox"
@@ -24,19 +24,21 @@ lint-cli:
 lint-format-gui:
   stage: lint
   tags:
-    - docker-exec
+    - sds-test
   # Using image which has node stuff preinstalled
-  image: $ARTIFACTORY_SERVER/sds/sdd-common-ci:2026.8.0
+  image: "${ARTIFACTORY_SERVER}/sds/sdd-common-ci:2026.10.0@sha256:4dbef76cae6000a9fed4636a748d6411a7c0959e2f9e5562090eaec572f74c26"
   rules:
-  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-    changes:
-      paths:
-        - sd_connect_s3_migrate_gui/**/*
-      compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        paths:
+          - sd_connect_s3_migrate_gui/**/*
+        compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+  before_script:
+    - pnpm add -g npm@11.12.1
   script: |
     echo "Linting gui with eslint"
     cd sd_connect_s3_migrate_gui
-    npm install
+    npm ci
     npm run lint-format
 
 update-versions-dryrun:
