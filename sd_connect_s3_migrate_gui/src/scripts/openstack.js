@@ -469,14 +469,16 @@ export async function getObject(token, bucket, key, start = 0, end = 200 * 1024 
       },
       cache: "no-cache",
     });
-
-    object = await resp.bytes();
+    if (resp?.ok) {
+      object = await resp.bytes();
+      console.log(`Retrieved object ${key}`);
+    } else {
+      throw new Error(`Swift API returned ${resp?.status} ${resp?.statusText}`);
+    }
   } catch (e) {
     console.error(`Error retrieving object ${key} via Swift API:`);
     console.error(e);
   }
-
-  console.log(`Retrieved object ${key}`);
 
   return object;
 }

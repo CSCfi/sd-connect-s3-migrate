@@ -307,14 +307,14 @@ async function migrateBucketHeaders(bucket) {
       header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
     } catch (e) {
       checkError(e);
-      console.error(`Failed to retrieve header for object ${object.name}, retrying...`);
+      console.error(`Failed to retrieve header for object ${object.key}, retrying...`);
       console.error(e);
       // Retry on failure
       try {
         header = await getFileHeader(sdApiToken, project.name, bucket.name, object.key);
       } catch (e) {
         // Failure expected in some cases like v1 objects
-        console.error(`Failed to retrieve header for object ${object.name}, on retry, continuing...`);
+        console.error(`Failed to retrieve header for object ${object.key}, on retry, continuing...`);
         console.error(e);
         continue;
       }
@@ -324,13 +324,13 @@ async function migrateBucketHeaders(bucket) {
       await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
     } catch (e) {
       checkError(e);
-      console.error(`Failed to add the header for object ${object.name}, retrying...`);
+      console.error(`Failed to add the header for object ${object.key}, retrying...`);
       console.error(e);
       // Retry on failure
       try {
         await putFileHeader(sdApiToken, project.name, bucket.convertedName, object.key, header);
       } catch (e) {
-        console.error(`Failed to add the header for object ${object.name} on retry, continuing...`);
+        console.error(`Failed to add the header for object ${object.key} on retry, continuing...`);
         console.error(e);
         continue;
       }
@@ -630,6 +630,11 @@ async function migrateBucketObjects(bucket) {
         object.isFUBAR = true;
         continue;
       }
+    } else if (!manifest && object.isSegmented) {
+      console.warn(`Segmented object ${object.key} does not have a manifest.`);
+      // We determine segmented objects by size 0
+      console.warn(`It is possible that ${object.key} is empty.`);
+      copyNeeded = true;
     }
 
     // Skip copying the object if it need not be copied

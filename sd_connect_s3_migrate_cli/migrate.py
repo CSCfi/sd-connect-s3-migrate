@@ -151,7 +151,7 @@ async def parse_object(
     if object["bytes"] == 0:
         object_metadata = await get_segmented_object_metadata(session, object["name"])
         migration_object["bytes"] = object_metadata["bytes"]
-        if object_metadata["manifest"]:
+        if object_metadata.get("manifest", ""):
             migration_object["isSegmented"] = True
             migration_object["ETag"] = ""
             migration_object["manifestBackup"] = object_metadata["manifest"]
@@ -293,7 +293,7 @@ async def copy_multipart_part_streaming(
         Params={
             "Bucket": opts["to_bucket"],
             "Key": migration_object["key"],
-            "PartNumber": int(migration_object_part["originalKey"].split("/")[-1]),
+            "PartNumber": int(migration_object_part["originalKey"].split("/")[-1]) + 1,
             "UploadId": upload_id,
             # "ChecksumMD5": migration_object_part["ETag"],
         },
@@ -384,10 +384,11 @@ async def copy_multipart_part_hardware(
 ):
     """Copy a multipart part by re-linking it in object storage."""
     if not dry_run:
+        # Prevent PartNumber starting at 0, it breaks upload
         await session["s3_client"].upload_part_copy(
             Bucket=opts["to_bucket"],
             Key=migration_object["key"],
-            PartNumber=int(migration_object_part["originalKey"].split("/")[-1]),
+            PartNumber=int(migration_object_part["originalKey"].split("/")[-1]) + 1,
             UploadId=upload_id,
             CopySource={
                 "Bucket": f"{migration_object['manifestBackup'].split("/")[0]}",
@@ -478,7 +479,8 @@ async def wrap_object_copy(
                             "Parts": [
                                 {
                                     "ETag": part["ETag"],
-                                    "PartNumber": int(part["originalKey"].split("/")[-1]),
+                                    "PartNumber": int(part["originalKey"].split("/")[-1])
+                                    + 1,
                                 }
                                 for part in migration_object["multipartParts"]
                             ]
