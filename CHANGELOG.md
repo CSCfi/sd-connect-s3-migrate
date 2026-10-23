@@ -7,6 +7,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.8] - 2026-10-23
+
+### Fixed
+
+- Fixed InvalidPart error caused by upload part number starting at 0 in CLI (#128)
+- Fixed errors caused by empty files in migration and migrated file deletion GUI and CLI (#126, #127)
+
 ## [2026.10.7] - 2026-10-20
 
 ### Fixed
@@ -369,7 +376,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.7...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.8...HEAD
+[2026.10.8]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.7...2026.10.8
 [2026.10.7]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.6...2026.10.7
 [2026.10.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.5...2026.10.6
 [2026.10.5]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.4...2026.10.5
