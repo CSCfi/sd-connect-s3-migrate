@@ -7,6 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- replaced `npm install` with `npm ci` in CI job
+- use new runners in CI pipelines
+
 ## [2026.10.8] - 2026-10-23
 
 ### Fixed
