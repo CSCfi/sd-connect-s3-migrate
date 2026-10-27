@@ -1,4 +1,4 @@
-FROM debian:13
+FROM debian:13@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308
 
 SHELL ["/bin/bash", "-lc"]
 
