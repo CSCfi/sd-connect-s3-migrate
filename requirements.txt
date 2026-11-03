@@ -13,7 +13,7 @@ sd-lock-utility @ git+https://github.com/CSCfi/sd-lock-util.git@f059b282f09e9ff1
 types-aiobotocore-s3==2.25.0
 anyascii==0.3.3
 tqdm==4.68.4
-black==24.4.2
+black==26.10.1
 flake8-docstrings==1.7.0
 flake8==7.0.0
 mypy==1.10.0
