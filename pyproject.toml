@@ -29,7 +29,7 @@ dependencies = [
     "asyncstdlib==3.14.0",
     "boto3==1.43.122",
     "botocore==1.43.122",
-    "certifi==2026.10.18",
+    "certifi==2026.10.23",
     "cffi==2.1.1",
     "click==8.5.0",
     "crypt4gh==1.8.6",
