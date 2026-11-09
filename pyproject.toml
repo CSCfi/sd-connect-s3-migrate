@@ -34,7 +34,7 @@ dependencies = [
     "click==8.5.0",
     "crypt4gh==1.8.6",
     "cryptography==50.0.2",
-    "sd-lock-utility @ git+https://github.com/CSCfi/sd-lock-util.git@f059b282f09e9ff12227bb29b53b5586f585a9d1",
+    "sd-lock-utility @ git+https://github.com/CSCfi/sd-lock-util.git@a97e4e3888344d52973c7b6b66856cfa15e424c6",
     "types-aiobotocore-s3==2.26.0",
     "anyascii==0.3.3",
     "tqdm==4.70.1",
