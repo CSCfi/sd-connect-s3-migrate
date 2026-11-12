@@ -9,7 +9,7 @@ cffi==2.1.1
 click==8.5.0
 crypt4gh==1.8.6
 cryptography==50.0.2
-sd-lock-utility @ git+https://github.com/CSCfi/sd-lock-util.git@a97e4e3888344d52973c7b6b66856cfa15e424c6
+sd-lock-utility @ git+https://github.com/CSCfi/sd-lock-util.git@56e9b91aae63c203af5b9f4f46f8f470b1e401b3
 types-aiobotocore-s3==2.26.0
 anyascii==0.3.3
 tqdm==4.70.1
