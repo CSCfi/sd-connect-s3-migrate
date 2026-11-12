@@ -7,26 +7,14 @@ include:
     ref: main
     file: 'releases.yml'
 
-lint-cli:
-  stage: lint
-  tags:
-    - sds-test
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-      changes:
-        paths:
-          - sd_connect_s3_migrate_cli/**/*
-        compare_to: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-  script: |
-    echo "Placeholder for linting cli"
-    echo "tox"
+default:
+  image: "${ARTIFACTORY_SERVER}/sds/sdd-common-ci:2026.10.0@sha256:4dbef76cae6000a9fed4636a748d6411a7c0959e2f9e5562090eaec572f74c26"
+
 
 lint-format-gui:
   stage: lint
   tags:
     - sds-test
-  # Using image which has node stuff preinstalled
-  image: "${ARTIFACTORY_SERVER}/sds/sdd-common-ci:2026.10.0@sha256:4dbef76cae6000a9fed4636a748d6411a7c0959e2f9e5562090eaec572f74c26"
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
@@ -40,6 +28,16 @@ lint-format-gui:
     cd sd_connect_s3_migrate_gui
     npm ci
     npm run lint-format
+
+verify-installation:
+  stage: lint
+  tags:
+    - sds-test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  script:
+    - echo "Verifying that versions are compatible with sd-lock-util and that pip successfully installs sd-connect-s3-migrator tool"
+    - pip install .
 
 update-versions-dryrun:
   extends: .update-versions-dryrun
