@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.0] - 2026-11-13
+
 ### Changed
 
 - Dependency updates and related fixes in GUI and CLI
@@ -15,6 +17,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- ec2 credential reuse in gui
 - Fixed failing lint-format-gui job on renovate branches due to package registry specification (#130)
 
 ### Added
@@ -390,7 +393,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Fixed app flow between the steps (#11)
 
 
-[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.8...HEAD
+[Unreleased]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.11.0...HEAD
+[2026.11.0]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.8...2026.11.0
 [2026.10.8]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.7...2026.10.8
 [2026.10.7]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.6...2026.10.7
 [2026.10.6]: https://gitlab.ci.csc.fi/sds-dev/sd-connect/sd-connect-s3-migrate/compare/2026.10.5...2026.10.6
