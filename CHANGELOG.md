@@ -9,12 +9,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Dependency updates and related fixes in GUI and CLI
 - replaced `npm install` with `npm ci` in CI job
 - use new runners in CI pipelines
 
 ### Fixed
 
 - Fixed failing lint-format-gui job on renovate branches due to package registry specification (#130)
+
+### Added
+
+- pip install build pipeline to verify version compatibility doesn't accidentally break (by renovate)
 
 ## [2026.10.8] - 2026-10-23
 
