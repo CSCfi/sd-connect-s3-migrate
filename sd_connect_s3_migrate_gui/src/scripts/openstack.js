@@ -179,7 +179,7 @@ export async function getEC2Credentials(token, projectId) {
     });
 
     const creds = await resp.json();
-    ec2 = creds?.credentials?.find((credential) => credential?.type === "ec2" && credential?.tenant_id === projectId);
+    ec2 = creds?.credentials?.find((credential) => credential?.tenant_id === projectId);
     if (!ec2) {
       throw new Error("Failed to retrieve EC2 credentials.");
     }
